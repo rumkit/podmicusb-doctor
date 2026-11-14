@@ -47,7 +47,7 @@ day of testing. That shows the problem is rarer there, not that those systems ar
    ended the transfer and the driver never saw it complete.
 6. **Safety net (3t, 3u, 3aa).** Test image *fix1* bounds the waits (20 ms), then resets the I2C peripheral and lets
    the stock retry resend. Result: **no disconnects in ~10 h, but 188 caught I2C failures**, about one per 30,000
-   codec writes, in bursts. The stall point varied (after byte 1, after all bytes, before the address phase) (3aa).
+   codec writes, in bursts. The stall point varied (after byte 1, after all bytes, before the address phase).
    That fits an interrupt that was **handled too late** better than an electrical fault: electrical faults would set
    error flags (3x).
 7. **Root cause (3ab, 3ac, 3ad).** The I2C event/error interrupts run at priority **0xC0/0xD0, near the bottom of the

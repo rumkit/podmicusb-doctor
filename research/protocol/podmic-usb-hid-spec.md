@@ -1,6 +1,6 @@
 # RØDE PodMic USB — USB/HID Control Protocol Specification
 
-Reverse-engineered protocol reference for implementing a configuration application. Verified against firmware 1.1.9 and RODE Central (Windows).
+Reverse-engineered protocol reference for implementing a configuration application. Verified against firmware 1.1.9 and RØDE Central (Windows).
 
 ---
 
@@ -98,7 +98,7 @@ The device answers on endpoint `0x81` with Report `0x07` (see §7).
 
 ### 5.3 Status poll
 
-RODE Central polls param `0x08` (`content = [0x08, 0x01, 0x00, ...]`): every ~1.15 s in the original captures, every 0.5 s in later ones. The response value is `0x00` in normal operation. In the firmware, param `0x08` reads the **mic mute** state (and param `0x03` the monitoring state). Whether the device requires this poll is unverified.
+RØDE Central polls param `0x08` (`content = [0x08, 0x01, 0x00, ...]`): every ~1.15 s in the original captures, every 0.5 s in later ones. The response value is `0x00` in normal operation. In the firmware, param `0x08` reads the **mic mute** state (and param `0x03` the monitoring state). Whether the device requires this poll is unverified.
 
 ### 5.4 Basic-mode slider sync
 
@@ -151,9 +151,9 @@ Report 0x03: [0x03, target_id, 0x41, value bytes...]
 Report 0x07: [0x07, param_id, 0x41, (index,) value bytes...]
 ```
 
-**The subfield byte is not present in responses** — the value region starts immediately after the `0x41` marker, one byte earlier than in a write. Apply each field's within-value-region offset accordingly (e.g. Compressor Threshold's 2 bytes sit at response offsets 5–6 → content offsets 2–3 after the marker).
+**The subfield byte is not present in responses** — the value region starts immediately after the `0x41` marker, one byte earlier than in a write. Apply each field's within-value-region offset accordingly (e.g. Compressor Threshold: in a write its 2 bytes are content offsets 5–6; in the response they are bytes 5–6 counting the report-ID byte, which is offsets 2–3 after the `0x41` marker).
 
-**Recommended connect sequence**: all settings persist in device memory and there are no fixed power-on defaults. On connect, issue a GET for every parameter (RODE Central reads ~58 values in a burst) and populate the UI from the responses.
+**Recommended connect sequence**: all settings persist in device memory and there are no fixed power-on defaults. On connect, issue a GET for every parameter (RØDE Central reads ~58 values in a burst) and populate the UI from the responses.
 
 ## 8. Basic mode semantics
 
@@ -341,8 +341,8 @@ The bootloader reuses Report `0x02` with its own command set (`'I'`, `'E'`, `'R'
 
 ## 12. Known unknowns
 
-- Report IDs `0x05/0x06` are declared but never used by RODE Central; the firmware handles `0x06` (not decoded).
+- Report IDs `0x05/0x06` are declared but never used by RØDE Central; the firmware handles `0x06` (not decoded).
 - Aural Exciter has an extra readable subfield `0x03` (observed value `0x1F`) with no corresponding UI control.
 - Report-8 param `0x04` is read at connect (value `0x5B` observed) but maps to no known control (`0x03` is monitoring, §5.3).
-- Factory Reset is not a separate command: RODE Central re-uploads the stock firmware through the bootloader ([`bootloader-protocol.md`](bootloader-protocol.md)) and then writes the DSP parameters back with Report `0x04`.
+- Factory Reset is not a separate command: RØDE Central re-uploads the stock firmware through the bootloader ([`bootloader-protocol.md`](bootloader-protocol.md)) and then writes the DSP parameters back with Report `0x04`.
 - The effect of omitting the status poll (§5.3) is untested.

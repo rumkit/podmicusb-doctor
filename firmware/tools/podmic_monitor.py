@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-podmic_monitor.py - watch a RODE PodMic USB on Windows and log every stall / disconnect, with timing.
+podmic_monitor.py - watch a RØDE PodMic USB on Windows and log every stall / disconnect, with timing.
 Works with ANY PodMic USB firmware (stock or modified). Windows, Python 3 standard library only; needs
-podmic_flash.py next to it (HID layer). CLOSE RODE CENTRAL first (its own polls would mix with ours).
+podmic_flash.py next to it (HID layer). CLOSE RØDE CENTRAL first (its own polls would mix with ours).
 
 Two modes:
-  basic (default)  discovery + liveness only. Sends nothing but the status request RODE Central itself sends
+  basic (default)  discovery + liveness only. Sends nothing but the status request RØDE Central itself sends
                    every 0.5 s:  SET_REPORT report 8 '08 08 01 00..'  ->  input report 7 '07 08 41 ..'
   --advanced       basic + the hang record of this project's diag image, read at start and after every
                    re-enumeration (hidden service command 02 'B'). On other firmware 'B' is a harmless no-op;
@@ -144,7 +144,7 @@ def main(argv=None):
         print("ERROR: Windows only", file=sys.stderr)
         return 1
     if pf.central_running():
-        print("ERROR: RODE Central is running - close it first (its polls would mix with ours)", file=sys.stderr)
+        print("ERROR: RØDE Central is running - close it first (its polls would mix with ours)", file=sys.stderr)
         return 1
 
     logf = open(args.log, "a", encoding="utf-8")

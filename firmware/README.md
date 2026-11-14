@@ -15,10 +15,6 @@ on Linux/macOS.
 
 ## Variants
 
-This repository contains **no RØDE firmware**. You extract the stock image from your own RØDE Central install
-and `build.py` patches it on your machine. The build output is checked against the sha256 below, so you know you
-have exactly the reference image.
-
 | Variant | What it changes vs stock 1.1.9 | sha256 of the built image |
 |---|---|---|
 | `i2cfix` | **The fix.** I2C interrupt priority raised (root cause), plus a 10 ms timeout with I2C reset + retry on every blocking I2C wait, as a safety net. Nothing else. | `be3f5fa5698f870b5ec7bfd631a66910474991deeccd3a6c50febc6b98fabc82` |
@@ -33,6 +29,10 @@ are welcome). The test runs showing that the priority fix works are in
 All variants keep version 1.1.9, so RØDE Central sees stock 1.1.9 and its factory restore still works.
 
 ## Quick start (Windows)
+
+This repository contains **no RØDE firmware**. You extract the stock image from your own RØDE Central install
+and `build.py` patches it on your machine. The build output is checked against the sha256 in the table above, so
+you know you have exactly the reference image.
 
 1. Install **RØDE Central** (you probably have it already). **Close it** before running the tools; it polls
    the mic and gets in the way.
@@ -131,7 +131,13 @@ supposed to win. If the new version still has the bug, the patches would need po
 
 ```
 python -m unittest discover -s firmware/tests -v            # from the repo root; no RØDE data needed
-PODMIC_STOCK=podmicusb-1.1.9-stock.bin python -m unittest ...   # also checks the reference sha256s
+```
+
+With a stock image the tests also check the reference sha256s:
+
+```
+$env:PODMIC_STOCK="podmicusb-1.1.9-stock.bin"; python -m unittest discover -s firmware/tests -v    # PowerShell
+PODMIC_STOCK=podmicusb-1.1.9-stock.bin python -m unittest discover -s firmware/tests -v            # Linux/macOS
 ```
 
 | Path | What |
@@ -140,7 +146,7 @@ PODMIC_STOCK=podmicusb-1.1.9-stock.bin python -m unittest ...   # also checks th
 | `patches/*.s` | add-on sources (Thumb-2 assembly, see each file's header) |
 | `patches/*.json` | assembled add-on bytes + labels, read by `build.py` |
 | `dev/assemble.py` | `.s` → `.json`; needs `rz-asm` from [Rizin](https://rizin.re) |
-| `dev/emu_holdmute.py` | emulates the holdmute jingle and button code from a built image, writes WAV previews; needs `rizin` |
+| `dev/emu_holdmute.py` | emulates the `i2cfix-volume-holdmute` jingle and button code from a built image, writes WAV previews; needs `rizin` |
 | `tests/` | offline tests (synthetic images) |
 
 Changing a patch (paths from the repo root):

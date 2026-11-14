@@ -14,7 +14,7 @@ a build script that applies them to the user's own stock image, a Windows HID fl
 | `firmware/tools/` | user-facing scripts: `extract_stock.py`, `build.py`, `podmic_flash.py`, `podmic_monitor.py` |
 | `firmware/patches/*.s` → `*.json` | add-on sources → assembled bytes + labels (`firmware/dev/assemble.py`, needs `rz-asm`) |
 | `firmware/tests/` | offline unit tests (synthetic images) |
-| `firmware/dev/` | developer tools (assembler, holdmute emulator; both need Rizin) |
+| `firmware/dev/` | developer tools (assembler, `i2cfix-volume-holdmute` emulator; both need Rizin) |
 | `research/README.md` | summary of the investigation; `research/NOTES.md` = chronological log, cite sections as (3s) etc. |
 | `docker/` | Linux RE lab image (Rizin + rz-ghidra, TShark); not needed to use the fix |
 

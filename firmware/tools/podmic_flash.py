@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-podmic_flash.py - flash an application image to a RODE PodMic USB through its
-HID bootloader, replicating exactly what RODE Central sent during a factory
+podmic_flash.py - flash an application image to a RØDE PodMic USB through its
+HID bootloader, replicating exactly what RØDE Central sent during a factory
 restore (USB capture of a factory restore, 2026-11-11; see research/NOTES.md 3a).
 
 Windows only, standard library only (ctypes -> hid.dll / setupapi.dll / kernel32).
-CLOSE RODE CENTRAL before using this.
+CLOSE RØDE CENTRAL before using this.
 
 Commands
   check IMAGE   offline checks of the image file only; touches no device
   info          list PodMic / bootloader HID devices (read-only, sends nothing)
   probe         app -> bootloader -> 'I' (info) -> back to app. Erases/writes nothing.
   flash IMAGE   full flash. Asks you to type FLASH before the first erase.
-  diag          (diag firmware only) read the hang snapshot / boot counter via app-mode '02 B'
+  diag          (diag firmware only) read the hang record / boot counter via app-mode '02 B'
   diag-test     (diag firmware only) diag, app -> bootloader -> app, diag: the boot counter
-                must go up by one (proves the snapshot survives a reset). Erases/writes nothing.
+                must go up by one (proves the hang record survives a reset). Erases/writes nothing.
 
 Protocol (all reports via HID SET_REPORT(Output) on EP0; replies = input report 1
 on the interrupt IN endpoint):
@@ -91,7 +91,7 @@ def check_image(data):
                          "the mic's settings)" % (pages, MAX_APP_PAGES, SETTINGS_FIRST_PAGE))
     if len(data) % PAGE_SIZE:
         warnings.append("image is not a multiple of %d bytes; last page will be "
-                        "padded with 0xFF (how RODE pads is unverified)" % PAGE_SIZE)
+                        "padded with 0xFF (how RØDE pads is unverified)" % PAGE_SIZE)
 
     ver = struct.unpack_from("<H", data, 0x20)[0]
     return {"size": len(data), "crc32": stored, "sp": sp, "reset": reset,
@@ -332,7 +332,7 @@ def cmd_diag_test(args):
     print("reading diag again:")
     after = cmd_diag(args)
     if after["magic_ok"] and after["boots"] == (before["boots"] + 1) & 0xFF and after["hangs"] == before["hangs"]:
-        print("PASS: boot counter %d -> %d across a software reset + bootloader; the snapshot will survive "
+        print("PASS: boot counter %d -> %d across a software reset + bootloader; the hang record will survive "
               "the watchdog reset too" % (before["boots"], after["boots"]))
     else:
         raise FlashError("FAIL: before boots %d hangs %d, after boots %d hangs %d (magic %s)"
@@ -418,7 +418,7 @@ class WinHid:
         return h
 
     def enumerate(self):
-        """Yield dicts for every RODE vendor-page HID collection (VID 0x19F7)."""
+        """Yield dicts for every RØDE vendor-page HID collection (VID 0x19F7)."""
         ct = self.ct
         guid = self.GUID()
         self.hid.HidD_GetHidGuid(ct.byref(guid))
@@ -505,7 +505,7 @@ class WinHidDevice:
         self.hr = api._open(desc["path"], "rw", FILE_FLAG_OVERLAPPED)  # for reading
         if self.hw is None or self.hr is None:
             self.close()
-            raise FlashError("cannot open the HID device (is RODE Central still running?)")
+            raise FlashError("cannot open the HID device (is RØDE Central still running?)")
         self.event = api.k32.CreateEventW(None, True, False, None)
 
     def flush(self):
@@ -564,12 +564,12 @@ def require_windows():
     if sys.platform != "win32":
         raise FlashError("device commands work on Windows only")
     if central_running():
-        raise FlashError("RODE Central is running - close it first (it polls the mic "
+        raise FlashError("RØDE Central is running - close it first (it polls the mic "
                          "and may react to the bootloader appearing)")
 
 
 def describe(d):
-    kind = {PID_APP: "PodMic USB (app)", PID_BOOT: "PodMic bootloader"}.get(d["pid"], "other RODE device")
+    kind = {PID_APP: "PodMic USB (app)", PID_BOOT: "PodMic bootloader"}.get(d["pid"], "other RØDE device")
     return ("%-20s PID 0x%04x  bcdDevice %s  usage page %s  in/out report len %s/%s"
             % (kind, d["pid"], fmt_version(d["bcd"]),
                "0x%04x" % d["usage_page"] if d["usage_page"] is not None else "?",
@@ -594,7 +594,7 @@ def cmd_info(args):
         raise FlashError("device commands work on Windows only")
     devs = WinHid().enumerate()
     if not devs:
-        print("no RODE HID devices found")
+        print("no RØDE HID devices found")
     for d in devs:
         print(describe(d))
 
@@ -652,7 +652,7 @@ def compare_versions(api, img_ver):
                          % (fmt_version(img_ver), fmt_version(dev_ver)))
     if img_ver > dev_ver:
         print("WARNING: image version %s is HIGHER than the mic's %s. If the bootloader enforces "
-              "anti-downgrade against the installed version, %s (and RODE Central's restore) "
+              "anti-downgrade against the installed version, %s (and RØDE Central's restore) "
               "may be rejected afterwards." % (fmt_version(img_ver), fmt_version(dev_ver),
                                                fmt_version(dev_ver)))
 
@@ -701,7 +701,7 @@ def cmd_flash(args):
         dev.close()
         print("\nFLASH FAILED. The mic is left in bootloader mode on purpose (no 'R' sent).")
         print("If the bootloader stopped answering (as after a rejected last page), unplug the mic,")
-        print("wait ~10 s, replug, then run RODE Central -> factory restore (proven 2026-11-11).")
+        print("wait ~10 s, replug, then run RØDE Central -> factory restore (proven 2026-11-11).")
         raise
     d = leave_bootloader(api, dev)
     if d["bcd"] == info["version_raw"]:

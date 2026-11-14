@@ -3,6 +3,7 @@
 The Linux container the firmware was analysed in. You **don't need it to use the fix**: the tools in
 [`firmware/tools/`](../firmware/tools/) run on Windows with plain Python. It is here so the analysis in
 [`research/`](../research/) can be reproduced and the patches in [`firmware/patches/`](../firmware/patches/) rebuilt.
+It's a small example of the setup that was used, not a maintained product: take what you need, or use your own image.
 
 ## What's inside
 
@@ -16,12 +17,13 @@ The Linux container the firmware was analysed in. You **don't need it to use the
 | Neovim, build tools | convenience / building Rizin | — |
 
 For the Rizin command line and the key firmware addresses see [`AGENTS.md`](../AGENTS.md) → "Firmware facts".
-The stock image comes from your own RØDE Central install via `firmware/tools/extract_stock.py` (run it on Windows, then copy the `.bin` into the mounted folder).
+The stock image comes from your own RØDE Central install via `firmware/tools/extract_stock.py` (run it on
+Windows, then copy the `.bin` into the mounted folder).
 
 ## Build
 
 1. Download a Ghidra release zip from <https://github.com/NationalSecurityAgency/ghidra/releases> and save it as
-   `docker/ghidra.zip` (it is git-ignored). If you don't want Ghidra, delete step 5 of the Dockerfile instead.
+   `docker/ghidra.zip` (it is git-ignored).
 2. From the repo root:
    ```bash
    docker build -t podmic-re docker/
@@ -43,9 +45,3 @@ docker run -it --name podmic-re -v podmic-re-home:/root -v "$PWD":/workspace pod
 
 The Windows-only parts (flashing, the monitor, USBPcap captures) can't run in the container: they need the mic
 on the host's USB.
-
-## Status
-
-This Dockerfile was written to reproduce the container the investigation ran in (Ubuntu 26.04, Rizin 0.10.0
-@ 46565f6, rz-ghidra, TShark 4.6.4, REA, Claude Code). **It has not itself been built and tested yet.** Floating
-parts (the Ubuntu base image, NodeSource, npm packages, rz-ghidra `dev`) may also have changed since.

@@ -40,9 +40,9 @@ In application mode, send report 2 with the service command **`'R'`** (`0x52`):
 host → app   02 52 00 00 00 00 00 00 00 00      (report 2, 'R', zero padding)
 ```
 
-There is no reply. The app saves its settings, soft-disconnects from USB and resets; ~10–75 ms later the mic
-drops off the bus and re-enumerates as the bootloader (PID 0x004B), ~0.4 s later in the capture. RØDE
-Central then waited ~1 s before its first command.
+There is no reply. The app saves its settings, soft-disconnects from USB and resets. ~10–75 ms later the mic
+drops off the bus, and ~0.4 s after that it reappears as the bootloader (PID 0x004B). RØDE Central then
+waited ~1 s before its first command.
 
 If the application image is invalid (e.g. after a rejected or interrupted flash), the mic **stays in the
 bootloader** after a power cycle, so it can still be flashed (NOTES 3g).

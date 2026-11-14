@@ -145,7 +145,7 @@ def main(argv=None):
     ap.add_argument("variant", choices=sorted(REFERENCE_SHA256) + ["all"])
     ap.add_argument("stock", nargs="?", default="podmicusb-1.1.9-stock.bin")
     ap.add_argument("-o", "--out", help="output file (not with 'all')")
-    ap.add_argument("--tone-db", type=float, help="holdmute jingle level in dBFS (-40..-6), default -18.06")
+    ap.add_argument("--tone-db", type=float, help="i2cfix-volume-holdmute jingle level in dBFS (-40..-6), default -18.06")
     a = ap.parse_args(argv)
     try:
         if a.out and a.variant == "all":

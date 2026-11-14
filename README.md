@@ -10,15 +10,16 @@ the investigation, the root cause and a community firmware patch.
 
 **Root cause:** the firmware's I2C interrupts (the bus to the audio codec) are almost at the bottom of the priority
 order, below audio and USB. Under audio/USB interrupt load an I2C event is occasionally handled too late. The codec write then never
-completes, the firmware's main loop waits forever with no timeout, and the watchdog resets the mic, which is the
-disconnect you see. **Fix:** raise the I2C interrupt priority (two bytes in stock firmware), plus a timeout as a
+completes, the firmware's main loop waits forever with no timeout, and the watchdog resets the mic, which is the disconnect you see. 
+
+**Fix:** raise the I2C interrupt priority (two bytes in stock firmware), plus a timeout as a
 safety net. In testing, an image with the fix ran for over 4 hours with zero I2C failures, against ~19 per hour without it
 (caught by the timeout).
 
 The original issue was reported to RØDE support; the ticket was closed without a fix.
 
 > [!WARNING]
-> Flashing modified firmware is **at your own risk**. It may void your warranty, brick your mic or make demons fly
+> Flashing modified firmware is at your own risk. It may void your warranty, brick your mic or make demons fly
 > out of your nose. If a flash fails, follow the recovery steps in [`firmware/README.md`](firmware/README.md#recovery).
 > Not affiliated with or endorsed by RØDE.
 
@@ -29,7 +30,7 @@ The original issue was reported to RØDE support; the ticket was closed without 
 | [`firmware/`](firmware/) | **Start here if you want the fix.** Patch variants, build script, flasher, monitor, recovery. [README](firmware/README.md) |
 | [`firmware/tools/`](firmware/tools/) | `extract_stock.py` · `build.py` · `podmic_flash.py` · `podmic_monitor.py` (Windows, Python 3, no dependencies) |
 | [`firmware/patches/`](firmware/patches/) | Patch sources (Thumb-2 assembly) and assembled bytes |
-| [`research/`](research/) | **How the cause was found.** [Summary](research/README.md) · [full lab notebook](research/NOTES.md) · [HID protocol](research/protocol/) · [firmware upload protocol](research/protocol/bootloader-protocol.md) |
+| [`research/`](research/) | How the cause was found. [Summary](research/README.md) · [full lab notebook](research/NOTES.md) · [HID protocol](research/protocol/) · [firmware upload protocol](research/protocol/bootloader-protocol.md) |
 | [`docker/`](docker/) | The Linux reverse-engineering lab (Rizin + rz-ghidra, TShark, …) the analysis ran in. [README](docker/README.md) |
 | [`AGENTS.md`](AGENTS.md) | Orientation and safety rules for AI coding agents (and humans) working on this repo |
 

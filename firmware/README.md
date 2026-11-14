@@ -4,7 +4,7 @@
 > **Use at your own risk.** Flashing modified firmware may void your warranty. A failed or interrupted
 > flash usually leaves the mic unusable until it is recovered (see [Recovery](#recovery)), but there is a
 > small yet real chance that something goes wrong in a way the recovery can't fix, and the mic is
-> **permanently bricked**. The authors accept **no responsibility** for damaged or bricked devices, lost
+> **permanently bricked**. The authors accept no responsibility for damaged or bricked devices, lost
 > settings or any other consequences (see also the [license](../LICENSE)). This project is
 > **not affiliated with or endorsed by RØDE**. Nothing here has been reviewed by RØDE. If you are not
 > comfortable with that risk and the recovery steps below, don't flash.
@@ -28,8 +28,8 @@ have exactly the reference image.
 
 All variants above have been flashed and run on a real PodMic USB (one unit so far; reports from other units
 are welcome). The evidence that the priority fix works comes from the test images: *fix2p* (same priority fix,
-hold-to-mute and jingle as `i2cfix-volume-holdmute`, plus diagnostics and a 20 ms timeout) ran with **0 I2C failures
-and 0 disconnects for 4 h 15 min**, while *fix1* (timeout only, no priority fix) had ~19 I2C failures/hour on
+hold-to-mute and jingle as `i2cfix-volume-holdmute`, plus diagnostics and a 20 ms timeout) ran with 0 I2C failures
+and 0 disconnects for 4 h 15 min, while *fix1* (timeout only, no priority fix) had ~19 I2C failures/hour on
 average, each caught by the timeout. The release images are those test images with the diagnostics removed and the
 timeout shortened to 10 ms. See [`../research/README.md`](../research/README.md).
 

@@ -5,9 +5,9 @@ build.py - build a patched PodMic USB firmware image from YOUR stock 1.1.9 image
 This repository contains no RØDE code. Get the stock image with extract_stock.py, then:
 
   py build.py VARIANT [STOCK] [-o OUT]
-     VARIANT  rel1 | rel2 | diag   (see firmware/README.md)
-     STOCK    stock image (default: podmic_usb_v1.1.9.bin in the current folder)
-     OUT      output file (default: podmic_usb_v1.1.9_<variant>.bin)
+     VARIANT  i2cfix | i2cfix-volume-holdmute | diag   (see firmware/README.md)
+     STOCK    stock image (default: podmicusb-1.1.9-stock.bin in the current folder)
+     OUT      output file (default: podmicusb-1.1.9-<variant>.bin)
   py build.py all [STOCK]       build all three
 
 The result is compared with the sha256 of the reference build listed in firmware/README.md. A match
@@ -15,9 +15,10 @@ means you have byte-for-byte the same image the author built and checked. The ve
 never raise it, the bootloader's anti-downgrade could then block going back to stock).
 
 Variants
-  rel1  I2C fix: I2C1 event/error interrupt priority 0xc0/0xd0 -> 0x10 (the root-cause fix), plus a
+  i2cfix  the fix: I2C1 event/error interrupt priority 0xc0/0xd0 -> 0x10 (the root-cause fix), plus a
         10 ms timeout on the blocking I2C waits with peripheral reset + the stock retry (safety net).
-  rel2  rel1 + headphone level at power-up -24 dB instead of -31.5 dB (wheel step 19 -> 24)
+  i2cfix-volume-holdmute
+        i2cfix + headphone level at power-up -24 dB instead of -31.5 dB (wheel step 19 -> 24)
         + hold the wheel button >= 0.7 s to mute/unmute the mic (short click unchanged, acts on release)
         + short mute/unmute jingle in the headphones. --tone-db sets its level (default -18.06 dBFS,
         the level tested on hardware; other values give a custom build).
@@ -37,19 +38,19 @@ import zlib
 STOCK_SHA256 = "11703ba4b1f4ed1d4d59243225547b596ebcbae8fffe48c302a63fd5b70b8d4c"
 BASE = 0x08004000
 ADDON_AT = 0x0800f460         # free 0xFF area after the .data init image
-TABLE_AT = 0x08004104         # reserved vector slots (zero in stock); rel2.s hardcodes TABLE_AT + 48
+TABLE_AT = 0x08004104         # reserved vector slots (zero in stock); i2cfix-volume-holdmute.s hardcodes TABLE_AT + 48
 PATCHES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "patches")
 DEFAULT_TONE = 0x10000000     # -18.06 dBFS, jingle level tested on hardware (test image fix2p)
 
 REFERENCE_SHA256 = {
-    "rel1": "be3f5fa5698f870b5ec7bfd631a66910474991deeccd3a6c50febc6b98fabc82",
-    "rel2": "f47071d7e1e079b3bc05e96fe547bf810933fab95d7fad2562429330c948b840",
+    "i2cfix": "be3f5fa5698f870b5ec7bfd631a66910474991deeccd3a6c50febc6b98fabc82",
+    "i2cfix-volume-holdmute": "f47071d7e1e079b3bc05e96fe547bf810933fab95d7fad2562429330c948b840",
     "diag": "ee5a84bdb26ef2e7f16bb76813901db1e162f884d711f4e35f183d38b1e43f06",
 }
 OUT_NAMES = {
-    "rel1": "podmic_usb_v1.1.9_rel1_i2cfix.bin",
-    "rel2": "podmic_usb_v1.1.9_rel2_i2cfix_vol_mute.bin",
-    "diag": "podmic_usb_v1.1.9_diag_wdt13s.bin",
+    "i2cfix": "podmicusb-1.1.9-i2cfix.bin",
+    "i2cfix-volume-holdmute": "podmicusb-1.1.9-i2cfix-volume-holdmute.bin",
+    "diag": "podmicusb-1.1.9-diag.bin",
 }
 
 
@@ -79,7 +80,7 @@ def load_addon(name):
 
 
 def tone_tables(amp, fs=48000):
-    """Resonator start values for the rel2 jingle: 1000 Hz, 667 Hz, silence + the two sequences."""
+    """Resonator start values for the holdmute jingle: 1000 Hz, 667 Hz, silence + the two sequences."""
     def segment(freq, n):
         if freq == 0:
             return struct.pack("<IiIi", n, 0, 0, 0)
@@ -94,7 +95,7 @@ def build(stock, variant, tone_amp=DEFAULT_TONE):
         raise BuildError("input is not the stock PodMic USB 1.1.9 image (sha256 mismatch) - "
                          "use extract_stock.py to get it")
     if variant not in REFERENCE_SHA256:
-        raise BuildError("unknown variant %r (rel1, rel2, diag)" % variant)
+        raise BuildError("unknown variant %r (i2cfix, i2cfix-volume-holdmute, diag)" % variant)
     addon, L = load_addon(variant)
     if ADDON_AT + len(addon) > BASE + len(stock) - 4:
         raise BuildError("add-on too long")
@@ -107,7 +108,7 @@ def build(stock, variant, tone_amp=DEFAULT_TONE):
             raise BuildError("unexpected bytes at %#x" % addr)
         img[o:o + len(new)] = new
 
-    if variant in ("rel1", "rel2"):
+    if variant in ("i2cfix", "i2cfix-volume-holdmute"):
         # root-cause fix: I2C1 EV/ER NVIC priority 0xc0/0xd0 -> 0x10 (above audio DMA 0x40 and USB 0x70)
         put(0x08008eae, b"\x10\x21\x10\x22", b"\xc0\x21\xd0\x22")
         # extend the startup .bss clear so the add-on's RAM variables start at zero
@@ -117,7 +118,7 @@ def build(stock, variant, tone_amp=DEFAULT_TONE):
             put(at, thumb_bl(at, L["start_hook"]), thumb_bl(at, 0x08008f24))
         for at in (0x0800ad78, 0x080091d8, 0x0800b0da):
             put(at, thumb_bl(at, L["wait_done"]), thumb_bl(at, 0x08008f18))
-    if variant == "rel2":
+    if variant == "i2cfix-volume-holdmute":
         put(0x08009be4, b"\x18\x20", b"\x13\x20")                       # boot wheel step 19 -> 24
         put(TABLE_AT, tone_tables(tone_amp), b"\x00" * 56)              # jingle tables
         put(0x0800a0aa, thumb_bl(0x0800a0aa, L["tone_hook"]), bytes.fromhex("604b1a78"))  # audio ISR mix hook
@@ -142,9 +143,9 @@ def tone_amp_from_db(db):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("variant", choices=sorted(REFERENCE_SHA256) + ["all"])
-    ap.add_argument("stock", nargs="?", default="podmic_usb_v1.1.9.bin")
+    ap.add_argument("stock", nargs="?", default="podmicusb-1.1.9-stock.bin")
     ap.add_argument("-o", "--out", help="output file (not with 'all')")
-    ap.add_argument("--tone-db", type=float, help="rel2 jingle level in dBFS (-40..-6), default -18.06")
+    ap.add_argument("--tone-db", type=float, help="holdmute jingle level in dBFS (-40..-6), default -18.06")
     a = ap.parse_args(argv)
     try:
         if a.out and a.variant == "all":

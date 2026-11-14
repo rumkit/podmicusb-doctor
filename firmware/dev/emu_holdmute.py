@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""emu_rel2.py - mini Thumb interpreter for the rel2 add-on (tone_hook = jingle, btn_task = hold-to-mute), running
-the REAL bytes of a built rel2 image, decoded by Rizin (`rizin` on PATH). Stock callees are stubbed. Checks pitch,
+"""emu_holdmute.py - mini Thumb interpreter for the holdmute add-on (tone_hook = jingle, btn_task = hold-to-mute), running
+the REAL bytes of a built i2cfix-volume-holdmute image, decoded by Rizin (`rizin` on PATH). Stock callees are stubbed. Checks pitch,
 level, length, register/stack preservation, no stray writes, button timings, and writes WAV previews of the jingles.
-Only needed when changing rel2.s. (Originally written for the fix2 test image; the code is the same.)
-usage: python3 emu_rel2.py podmic_usb_v1.1.9_rel2_i2cfix_vol_mute.bin [out_dir]"""
+Only needed when changing i2cfix-volume-holdmute.s. (Originally written for the fix2 test image; the code is the same.)
+usage: python3 emu_holdmute.py podmicusb-1.1.9-i2cfix-volume-holdmute.bin [out_dir]"""
 import json, re, struct, subprocess, sys, wave, os
 
 IMG = sys.argv[1]; OUT = sys.argv[2] if len(sys.argv) > 2 else "."
@@ -13,7 +13,7 @@ ram = bytearray(0x2000)
 M32 = 0xFFFFFFFF
 S32 = lambda x: x - (1 << 32) if x & 0x80000000 else x
 labels = {k: int(v, 16) for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                                    "..", "patches", "rel2.json")))["labels"].items()}
+                                                    "..", "patches", "i2cfix-volume-holdmute.json")))["labels"].items()}
 DIS_AT = min(labels["tone_hook"], labels["btn_task"])   # tone_hook + btn_task = 0xe8 bytes
 
 dis = json.loads(subprocess.run(["rizin", "-q", "-e", "scr.color=0", "-e", "asm.cpu=cortexm", "-a", "arm", "-b", "16",

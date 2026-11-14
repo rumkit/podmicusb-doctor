@@ -16,7 +16,7 @@ What it logs (console + log file):
   STALL    a poll went unanswered (mic main loop not responding)
   RECOVER  answers resumed without a disconnect          -> transient stall, duration
   GONE     the mic left USB; silent time before that      -> what reset it:
-             ~1.1-2.2 s stock / ~9-17 s with the wdt13s-based images  => watchdog reset (main loop hung)
+             ~1.1-2.2 s stock / ~9-17 s with the diag image (long watchdog)  => watchdog reset (main loop hung)
              ~0 s (answers right up to the drop)                       => instant reset (fault/NMI) or unplug
   BACK     the mic re-enumerated, and how long that took
   ALIVE    heartbeat every 5 min with the poll count

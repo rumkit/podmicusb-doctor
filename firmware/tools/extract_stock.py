@@ -10,7 +10,7 @@ usage:
   py extract_stock.py [PATH] [-o OUT]
      PATH  rode_bridge.dll, or a folder to search for it (e.g. the RØDE Central install folder).
            Default: search the Program Files folders for a RØDE Central install.
-     OUT   output file (default: podmic_usb_v1.1.9.bin in the current folder)
+     OUT   output file (default: podmicusb-1.1.9-stock.bin in the current folder)
 
 Checked with RØDE Central for Windows 2.0.65 (PodMic firmware 1.1.9).
 """
@@ -51,7 +51,7 @@ def extract(data):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("path", nargs="?", help="rode_bridge.dll or a folder containing it")
-    ap.add_argument("-o", "--out", default="podmic_usb_v1.1.9.bin")
+    ap.add_argument("-o", "--out", default="podmicusb-1.1.9-stock.bin")
     a = ap.parse_args(argv)
     dll = find_dll(a.path)
     if not dll:

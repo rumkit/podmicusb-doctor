@@ -1,4 +1,4 @@
-; PodMic 1.1.9 release add-on, variant 2 (variant 1 + boot volume step 24 + hold-to-mute + jingle) (2026-11-14). Built from fix1/fix2 sources with all diagnostics removed.
+; PodMic 1.1.9 add-on "i2cfix-volume-holdmute" (i2cfix + boot volume step 24 + hold-to-mute + jingle) (2026-11-14). Built from fix1/fix2 sources with all diagnostics removed.
 ; I2C safeguard (10 ms since 2026-11-14): wait_done replaces 'bl 0x08008f18' at the 3 blocking done-wait loops, start_hook replaces
 ;  'bl 0x08008f24' at the 3 blocking starts. 10 ms (ms tick 0x20001a9c, stock SysTick) -> i2c_recover: I2C1 SRESET,
 ;  restore FREQ/CKCFG/RT, I2CEN, clear pending EV/ER (NVIC ICPR, IRQ24/IRQ34), state = 2 -> stock retry.

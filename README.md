@@ -35,14 +35,14 @@ own RØDE Central install, and check that the result is byte-identical to the re
 ```
 cd firmware\tools
 py extract_stock.py
-py build.py rel1
-py podmic_flash.py flash podmic_usb_v1.1.9_rel1_i2cfix.bin
+py build.py i2cfix
+py podmic_flash.py flash podmicusb-1.1.9-i2cfix.bin
 ```
 
-| Variant | |
+| Variant (file: `podmicusb-1.1.9-<variant>.bin`) | |
 |---|---|
-| `rel1` | the fix only |
-| `rel2` | the fix + hold-wheel-to-mute with a headphone jingle + louder headphone default |
+| `i2cfix` | the fix only |
+| `i2cfix-volume-holdmute` | the fix + louder headphone default + hold the wheel to mute, with a headphone jingle |
 | `diag` | records where the firmware hangs, to confirm you have the same problem; fixes nothing |
 
 Read [`firmware/README.md`](firmware/README.md) first: status of each variant, safety rules, recovery.
@@ -50,11 +50,11 @@ Read [`firmware/README.md`](firmware/README.md) first: status of each variant, s
 ## Status
 
 - Root cause identified and confirmed with test images on one unit (see [research](research/README.md)).
-- Release images `rel1`/`rel2` are built and checked offline, **not yet hardware-tested in their final form**.
+- The `i2cfix` and `i2cfix-volume-holdmute` images are built and checked offline, **not yet hardware-tested in their final form**.
 - Only firmware 1.1.9 is supported.
 
 Reports from other PodMic USB owners are welcome, especially `diag` results, and whether the problem happens on
-other OSes or with `rel1`. Please open an issue.
+other OSes or with `i2cfix`. Please open an issue.
 
 ## License
 

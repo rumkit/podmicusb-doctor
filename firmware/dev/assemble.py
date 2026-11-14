@@ -10,7 +10,7 @@ Source format (one instruction per line, ';' comments):
   label:                 labels; may be used as operands (resolved iteratively)
   MRS_R12_MSP etc.       a few instructions rz-asm can't encode are given as raw bytes (MANUAL below)
 
-usage: python3 assemble.py ../patches/rel1.s [--list]
+usage: python3 assemble.py ../patches/i2cfix.s [--list]
 """
 import json
 import os

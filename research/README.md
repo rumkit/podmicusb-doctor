@@ -66,7 +66,7 @@ day of testing. That shows the problem is rarer there, not that those systems ar
 
 In stock firmware that's two bytes (`movs r1,#0xc0` / `movs r2,#0xd0` at 0x08008eae/0x08008eb0). The I2C event
 handler is short, straight-line code with no waits, so letting it preempt audio and USB costs microseconds (3ac).
-The release image `rel1` also keeps a bounded wait (10 ms) with I2C reset + retry as a safety net. Worst case with
+The `i2cfix` image also keeps a bounded wait (10 ms) with I2C reset + retry as a safety net. Worst case with
 a permanently failing I2C bus is ~180 ms blocked per task run, well inside the stock watchdog (3ae).
 
 ## Why Windows? (open)

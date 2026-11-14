@@ -14,7 +14,7 @@ a build script that applies them to the user's own stock image, a Windows HID fl
 | `firmware/tools/` | user-facing scripts: `extract_stock.py`, `build.py`, `podmic_flash.py`, `podmic_monitor.py` |
 | `firmware/patches/*.s` → `*.json` | add-on sources → assembled bytes + labels (`firmware/dev/assemble.py`, needs `rz-asm`) |
 | `firmware/tests/` | offline unit tests (synthetic images) |
-| `firmware/dev/` | developer tools (assembler, rel2 emulator; both need Rizin) |
+| `firmware/dev/` | developer tools (assembler, holdmute emulator; both need Rizin) |
 | `research/README.md` | summary of the investigation; `research/NOTES.md` = chronological log, cite sections as (3s) etc. |
 
 ## Hard rules: a real mic can be bricked or wedged
@@ -39,18 +39,18 @@ a build script that applies them to the user's own stock image, a Windows HID fl
 
 ## Workflow
 - Tests: `python -m unittest discover -s firmware/tests -v` from the repo root. With a stock image:
-  `PODMIC_STOCK=path/to/podmic_usb_v1.1.9.bin` also checks the reference sha256s.
+  `PODMIC_STOCK=path/to/podmicusb-1.1.9-stock.bin` also checks the reference sha256s.
 - Changing a patch: edit `patches/<v>.s` → `python3 firmware/dev/assemble.py firmware/patches/<v>.s` → build →
-  update `REFERENCE_SHA256` in `build.py` **and** the table in `firmware/README.md` → run the tests. For rel2 also
-  run `firmware/dev/emu_rel2.py` on the built image.
+  update `REFERENCE_SHA256` in `build.py` **and** the table in `firmware/README.md` → run the tests. For i2cfix-volume-holdmute
+  also run `firmware/dev/emu_holdmute.py` on the built image.
 - Mark anything not run on hardware as such in the READMEs. Don't claim it's tested.
 
 ## Firmware facts you need
 - MCU GigaDevice GD32F350 (Cortex-M4, Thumb-2), 64 KB flash, 8 KB RAM. Bootloader 0x08000000–0x08003FFF (not in
   any file here). App base **0x08004000**, 1 KB pages. Codec NAU88L21 on I2C1 at 0x1B.
-- Disassemble: `rizin -a arm -b 16 -m 0x08004000 -e asm.cpu=cortexm podmic_usb_v1.1.9.bin` (`af` then `pdg` with
+- Disassemble: `rizin -a arm -b 16 -m 0x08004000 -e asm.cpu=cortexm podmicusb-1.1.9-stock.bin` (`af` then `pdg` with
   rz-ghidra).
-- Add-on code goes in the 0xFF gap from **0x0800F460**. rel2 also uses the zeroed reserved vector slots at
+- Add-on code goes in the 0xFF gap from **0x0800F460**. i2cfix-volume-holdmute also uses the zeroed reserved vector slots at
   0x08004104 (56 B). Add-on RAM up to 0x20001B10, zeroed by the (patched) startup `.bss` clear.
 - Key stock addresses: I2C1 EV/ER NVIC priority `movs` at 0x08008eae/0x08008eb0 (the fix); I2C start 0x08008f24,
   done 0x08008f18; codec write 0x0800ad0c (its waits at 0x0800ad70/0x0800ad78); IWDG init 0x08009198 (prescaler byte

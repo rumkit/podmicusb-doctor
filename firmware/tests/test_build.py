@@ -5,7 +5,7 @@ Without RØDE data: a synthetic "stock" image carries only the stock bytes at th
 check that each variant changes exactly the intended places, branches land on the add-on labels, the
 CRC is valid and the version marker stays 1.1.9.
 
-With your real stock image: set PODMIC_STOCK=path/to/podmic_usb_v1.1.9.bin and the reference sha256s
+With your real stock image: set PODMIC_STOCK=path/to/podmicusb-1.1.9-stock.bin and the reference sha256s
 are checked too (otherwise that test is skipped).
 
 run from the repo root:  python -m unittest discover -s firmware/tests -v
@@ -91,10 +91,10 @@ class BuildTest(unittest.TestCase):
     def allowed(self, variant):
         code, _ = b.load_addon(variant)
         r = [(b.ADDON_AT, b.ADDON_AT + len(code)), (b.BASE + SIZE - 4, b.BASE + SIZE)]
-        if variant in ("rel1", "rel2"):
+        if variant in ("i2cfix", "i2cfix-volume-holdmute"):
             r += [(0x08008eae, 0x08008eb2), (0x08007d78, 0x08007d7c)]
             r += [(a, a + 4) for a in (0x0800ad70, 0x080091d0, 0x0800b0d2, 0x0800ad78, 0x080091d8, 0x0800b0da)]
-        if variant == "rel2":
+        if variant == "i2cfix-volume-holdmute":
             r += [(0x08009be4, 0x08009be6), (b.TABLE_AT, b.TABLE_AT + 56), (0x0800a0aa, 0x0800a0ae),
                   (0x080092f4, 0x080092f8)]
         if variant == "diag":
@@ -103,26 +103,26 @@ class BuildTest(unittest.TestCase):
         return r
 
     def test_only_intended_bytes_change(self):
-        for v in ("rel1", "rel2", "diag"):
+        for v in ("i2cfix", "i2cfix-volume-holdmute", "diag"):
             img = b.build(self.stock, v)
             for lo, hi in changed_ranges(self.stock, img):
                 self.assertTrue(any(a <= lo and hi <= z for a, z in self.allowed(v)),
                                 "%s: unexpected change at 0x%08x..0x%08x" % (v, lo, hi))
 
     def test_crc_vectors_version(self):
-        for v in ("rel1", "rel2", "diag"):
+        for v in ("i2cfix", "i2cfix-volume-holdmute", "diag"):
             info, warns = pf.check_image(b.build(self.stock, v))
             self.assertEqual(info["version_raw"], 0x0119, v)   # never raise the version marker
             self.assertLessEqual(info["pages"], pf.MAX_APP_PAGES)
 
     def test_addon_placed(self):
-        for v in ("rel1", "rel2", "diag"):
+        for v in ("i2cfix", "i2cfix-volume-holdmute", "diag"):
             code, _ = b.load_addon(v)
             img = b.build(self.stock, v)
             self.assertEqual(img[off(b.ADDON_AT):off(b.ADDON_AT) + len(code)], code)
 
     def test_i2c_priority_and_hooks(self):
-        for v in ("rel1", "rel2"):
+        for v in ("i2cfix", "i2cfix-volume-holdmute"):
             img = b.build(self.stock, v)
             _, L = b.load_addon(v)
             self.assertEqual(img[off(0x08008eae):off(0x08008eb2)], b"\x10\x21\x10\x22")
@@ -131,9 +131,9 @@ class BuildTest(unittest.TestCase):
             for at in (0x0800ad78, 0x080091d8, 0x0800b0da):
                 self.assertEqual(bl_target(img, at), (L["wait_done"], True))
 
-    def test_rel2_extras(self):
-        img = b.build(self.stock, "rel2")
-        _, L = b.load_addon("rel2")
+    def test_holdmute_extras(self):
+        img = b.build(self.stock, "i2cfix-volume-holdmute")
+        _, L = b.load_addon("i2cfix-volume-holdmute")
         self.assertEqual(bl_target(img, 0x0800a0aa), (L["tone_hook"], True))
         self.assertEqual(struct.unpack_from("<I", img, off(0x080092f4))[0], L["btn_task"] | 1)
 
@@ -149,7 +149,7 @@ class BuildTest(unittest.TestCase):
         bad = bytearray(self.stock)
         bad[0x1000] ^= 1
         with self.assertRaisesRegex(b.BuildError, "sha256"):
-            b.build(bytes(bad), "rel1")
+            b.build(bytes(bad), "i2cfix")
 
     def test_thumb_bl_roundtrip(self):
         for at, target in ((0x0800ad70, 0x0800f460), (0x0800f500, 0x08004400), (0x08004000, 0x0800fffe)):

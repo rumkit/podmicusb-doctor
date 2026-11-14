@@ -1,10 +1,11 @@
 > **About this file.** This is the raw, chronological lab notebook of the investigation (sessions 2a–3ae,
 > 2026-11-04 → 2026-11-14), kept as written, including hypotheses that later turned out wrong (corrections are noted
 > in later sessions). For the summary read [`README.md`](README.md). File paths mentioned here refer to the original
-> working folder, not to this repository: `flasher/*` → `firmware/tools/`, `firmware/release/rel_v*.s` and
-> `firmware/diag/diag.s` → `firmware/patches/`, image builders → `firmware/tools/build.py`. The test images
+> working folder, not to this repository: `flasher/*` → `firmware/tools/`, `firmware/release/rel_v1.s` → `firmware/patches/i2cfix.s`,
+> `rel_v2.s` → `i2cfix-volume-holdmute.s`, `firmware/diag/diag.s` → `diag.s`; image `wdt13s_diag` → `diag`, release images rel1/rel2 → `i2cfix` /
+> `i2cfix-volume-holdmute`, image builders → `firmware/tools/build.py`. The test images
 > (wdt6s/wdt13s, fix1, fix2, fix2p) are not reproducible from this repository; their add-on code is a superset of
-> `rel2.s` + `diag.s`. The unit's USB serial number is redacted.
+> `i2cfix-volume-holdmute.s` + `diag.s`. The unit's USB serial number is redacted.
 
 # PodMic USB fw 1.1.9 — analysis notes (2026-11-04)
 

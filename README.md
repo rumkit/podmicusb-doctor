@@ -4,8 +4,8 @@ The **RØDE PodMic USB** (firmware 1.1.9) randomly drops off USB and reconnects 
 reported on Windows 11, while the mic's headphone output was the system audio device. This repository documents
 the investigation, the root cause and a community firmware patch.
 
-**Root cause:** the firmware's I2C interrupts (the bus to the audio codec) have the lowest priority in the
-system. Under audio/USB interrupt load an I2C event is occasionally handled too late. The codec write then never
+**Root cause:** the firmware's I2C interrupts (the bus to the audio codec) are almost at the bottom of the priority
+order, below audio and USB. Under audio/USB interrupt load an I2C event is occasionally handled too late. The codec write then never
 completes, the firmware's main loop waits forever with no timeout, and the watchdog resets the mic, which is the
 disconnect you see. **Fix:** raise the I2C interrupt priority (two bytes in stock firmware), plus a timeout as a
 safety net. In testing, an image with the fix ran for over 4 hours with zero I2C failures, against ~19 per hour without it

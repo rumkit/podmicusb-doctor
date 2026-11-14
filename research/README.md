@@ -50,8 +50,8 @@ day of testing. That shows the problem is rarer there, not that those systems ar
    codec writes, in bursts. The stall point varied (after byte 1, after all bytes, before the address phase) (3aa).
    That fits an interrupt that was **handled too late** better than an electrical fault: electrical faults would set
    error flags (3x).
-7. **Root cause (3ab, 3ac, 3ad).** The I2C event/error interrupts run at priority **0xC0/0xD0, the lowest in the
-   system**, below the audio DMA interrupt (0x40) and USB (0x70). An I2C event can wait behind a full audio-block
+7. **Root cause (3ab, 3ac, 3ad).** The I2C event/error interrupts run at priority **0xC0/0xD0, near the bottom of the
+   priority order**, below the audio DMA interrupt (0x40) and USB (0x70). An I2C event can wait behind a full audio-block
    or USB interrupt. GigaDevice's GD32F3x0 errata (I2C section) and ST's equivalent errata describe I2C event
    handling as latency-sensitive and recommend a higher I2C interrupt priority or DMA. Test image *fix2p* raised
    both to 0x10. Result: **0 I2C failures and 0 disconnects in 4 h 15 min**, against ~19/h average for fix1. The test

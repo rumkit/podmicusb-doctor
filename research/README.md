@@ -31,8 +31,8 @@ day of testing. That shows the problem is rarer there, not that those systems ar
 2. **Firmware structure (2a).** Audio and USB run in interrupts and DMA. Everything else runs in a cooperative
    main loop. The independent watchdog (~1.64 s) is fed **only** by a 4 ms main-loop task. So a main loop that
    hangs gives exactly the captured pattern: audio keeps streaming, HID goes silent, and the watchdog resets the
-   chip ~1.6 s later. The same 4 ms task runs a control loop that steers the codec clock from the playback buffer
-   level, writing to the codec over I2C. The I2C driver waits for completion **without any timeout**, which made it
+   chip ~1.6 s later. Another 4 ms task in the same loop runs a control loop that steers the codec clock from the
+   playback buffer level, writing to the codec over I2C. The I2C driver waits for completion **without any timeout**, which made it
    the lead candidate (2b).
 3. **Flashing became possible (3a, 3g, 3h).** A USB capture of RØDE Central's factory restore revealed a simple
    HID bootloader protocol, so a flasher could be written. Findings: the bootloader checks the CRC and **rejects an
@@ -57,6 +57,69 @@ day of testing. That shows the problem is rarer there, not that those systems ar
    both to 0x10. Result: **0 I2C failures and 0 disconnects in 4 h 15 min**, against ~19/h average for fix1. The test
    was continued and judged a success before the release images were built (3ae). The release images were then
    flashed and run on the same mic.
+
+## How the hang happens, in pseudo-C
+
+Reconstructed from the disassembly of stock 1.1.9 and heavily simplified. The names are ours and this is **not
+RØDE's source**. The addresses let you check each part against the firmware.
+
+```c
+/* Boot: NVIC priorities, lower number = more urgent                          0x08008eae */
+nvic_set_priority(DMA_AUDIO_IRQn, 0x40);   /* audio block processing, every ~333 µs */
+nvic_set_priority(USBFS_IRQn,     0x70);
+nvic_set_priority(I2C1_EV_IRQn,   0xC0);   /* codec I2C: near the bottom */
+nvic_set_priority(I2C1_ER_IRQn,   0xD0);
+
+volatile uint8_t i2c_state;                /* 0 busy, 1 done, 2 error                 0x200000dc */
+
+/* Main loop: cooperative scheduler, runs one due task per pass               0x0800c174 */
+for (;;) run_one_due_task();               /* a task that never returns blocks all others */
+
+void watchdog_task(void)      { iwdg_refresh(); /* + wheel button */ }  /* 4 ms, 0x08009b70 */
+void codec_clock_task(void)   { codec_write(...); }   /* 4 ms, PI clock trim,   0x0800af08 */
+
+int codec_write(...)                                                       /* 0x0800ad0c */
+{
+    for (int attempt = 0; attempt < 4; attempt++) {
+        while (!i2c_start(...)) ;          /* wait until the driver accepts the transfer */
+        while (i2c_state == 0) ;           /* wait for the ISR: NO TIMEOUT           0x0800ad78 */
+        if (i2c_state == 1) return OK;
+        /* error: retry (stock also toggles the address 0x1B <-> 0x1A) */
+    }
+    return FAIL;
+}
+
+void I2C1_EV_IRQHandler(void)    /* one bus event per interrupt                    0x08008fa4 */
+{
+    if (start_sent)      send_address();
+    if (address_acked)   enable_buffer_irq();
+    if (tx_empty)        send_next_byte();
+    if (byte_finished) { stop(); i2c_state = 1; }   /* the only place "done" is set */
+}
+
+void I2C1_ER_IRQHandler(void)    /* bus error, NACK, lost arbitration               0x08009128 */
+{
+    clear_flags(); stop(); i2c_state = 2;
+}
+```
+
+What goes wrong: the I2C event interrupt can wait behind the audio and USB interrupts. Occasionally a codec write
+then ends with the bus idle and **no flag left for either handler**, so `i2c_state` stays 0. Exactly how the
+peripheral gets there is not known (3x), but the diagnostic snapshots always show this state (3s, 3aa).
+`codec_write` spins forever, the scheduler never runs `watchdog_task` again, and ~1.6 s later the watchdog resets
+the mic. Audio and USB keep running in their interrupts until then, which matches the USB capture.
+
+The fix, in the same terms:
+
+```c
+nvic_set_priority(I2C1_EV_IRQn, 0x10);     /* above audio and USB */
+nvic_set_priority(I2C1_ER_IRQn, 0x10);
+
+/* safety net: the done-wait (and the start-wait) get a 10 ms limit */
+uint32_t t0 = ms_tick;
+while (i2c_state == 0)
+    if (ms_tick - t0 > 10) { i2c_reset_peripheral(); i2c_state = 2; }   /* -> stock retry */
+```
 
 ## The fix
 

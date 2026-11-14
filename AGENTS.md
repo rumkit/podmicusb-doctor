@@ -57,4 +57,4 @@ a build script that applies them to the user's own stock image, a Windows HID fl
   done 0x08008f18; codec write 0x0800ad0c (its waits at 0x0800ad70/0x0800ad78); IWDG init 0x08009198 (prescaler byte
   at 0x0800919a); 4 ms task feeding the watchdog 0x08009b70; scheduler 0x0800c174; SysTick 0x0800c390; ms tick
   0x20001a9c.
-- Bootloader HID protocol: see the docstring of `podmic_flash.py` and NOTES 3a.
+- Bootloader HID protocol: `research/protocol/bootloader-protocol.md` (implemented in `podmic_flash.py`).

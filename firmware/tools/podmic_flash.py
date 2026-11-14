@@ -26,6 +26,7 @@ on the interrupt IN endpoint):
              report 2  '02 52 00..' 'R'   -> reboot into the app (PID 0x004A)
 Page NN is an index from 0x08004000. Settings live in pages 46-47 (0x0800F800,
 0x0800FC00) and are NEVER erased by this script.
+Full description: research/protocol/bootloader-protocol.md
 """
 import argparse
 import struct

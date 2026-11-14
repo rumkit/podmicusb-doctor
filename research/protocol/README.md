@@ -1,12 +1,14 @@
-# PodMic USB app-mode HID protocol
+# PodMic USB HID protocols
 
 Reverse-engineered description of how RØDE Central configures the PodMic USB over USB HID (DSP parameters,
-status polls, gain), written before the disconnect investigation and used during it.
+status polls, gain), written before the disconnect investigation and used during it, plus the bootloader
+protocol RØDE Central uses to upload firmware, recovered during the investigation.
 
 | File | What |
 |---|---|
 | [`podmic-usb-hid-spec.md`](podmic-usb-hid-spec.md) | Protocol specification: reports, parameter reads/writes, polls |
 | [`PARAMETER-MATRIX.md`](PARAMETER-MATRIX.md) | Every known parameter with its encoding and a confidence rating |
+| [`bootloader-protocol.md`](bootloader-protocol.md) | Firmware upload: bootloader (PID 0x004B) commands, image format, what the bootloader accepts |
 
 ## Errata and additions from the firmware analysis
 
@@ -16,7 +18,7 @@ status polls, gain), written before the disconnect investigation and used during
   `'G'`/`'S'` codec register read/write over I2C (**don't use: they write to the audio codec directly**),
   `'L'` halt (the watchdog then resets the mic), `'T'` test mode, `'R'` reboot into the bootloader,
   `'B'`/`'E'` unknown in stock firmware (`'B'` is used by this project's diag image). See NOTES 3c.
-- The **bootloader protocol** (PID 0x004B) used for flashing is documented in `firmware/tools/podmic_flash.py`
-  and NOTES 3a.
+- The **bootloader protocol** (PID 0x004B) used for flashing is documented in
+  [`bootloader-protocol.md`](bootloader-protocol.md) (implemented by `firmware/tools/podmic_flash.py`).
 - `PARAMETER-MATRIX.md` refers to companion documents (`PodMic-USB-Protocol.md`, exciter analyses) that are
   not part of this repository.

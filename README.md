@@ -36,7 +36,9 @@ The original issue was reported to RØDE support; the ticket was closed without 
 ## Getting the fix, in short
 
 No firmware files are distributed here. The scripts build the patched image from the stock firmware inside your
-own RØDE Central install, and check that the result is byte-identical to the reference build:
+own RØDE Central install, and check that the result is byte-identical to the reference build.
+Download the zip from the [latest release](https://github.com/rumkit/podmicusb-doctor/releases/latest) and unzip
+it, or clone this repository. Then, on Windows with Python 3 installed:
 
 ```
 cd firmware\tools
@@ -51,7 +53,7 @@ py podmic_flash.py flash podmicusb-1.1.9-i2cfix.bin
 | `i2cfix-volume-holdmute` | the fix + louder headphone default + hold the wheel to mute, with a headphone jingle |
 | `diag` | records where the firmware hangs, to confirm you have the same problem; fixes nothing |
 
-Read [`firmware/README.md`](firmware/README.md) first: status of each variant, safety rules, recovery.
+Read [`firmware/README.md`](firmware/README.md) first: what each variant does, safety rules, recovery.
 
 ## Status
 

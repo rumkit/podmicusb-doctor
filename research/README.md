@@ -55,7 +55,8 @@ day of testing. That shows the problem is rarer there, not that those systems ar
    or USB interrupt. GigaDevice's GD32F3x0 errata (I2C section) and ST's equivalent errata describe I2C event
    handling as latency-sensitive and recommend a higher I2C interrupt priority or DMA. Test image *fix2p* raised
    both to 0x10. Result: **0 I2C failures and 0 disconnects in 4 h 15 min**, against ~19/h average for fix1. The test
-   was continued and judged a success before the release images were built (3ae).
+   was continued and judged a success before the release images were built (3ae). The release images were then
+   flashed and run on the same mic.
 
 ## The fix
 

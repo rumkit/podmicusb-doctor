@@ -19,18 +19,19 @@ This repository contains **no RØDE firmware**. You extract the stock image from
 and `build.py` patches it on your machine. The build output is checked against the sha256 below, so you know you
 have exactly the reference image.
 
-| Variant | What it changes vs stock 1.1.9 | Status | sha256 of the built image |
-|---|---|---|---|
-| `i2cfix` | **The fix.** I2C interrupt priority raised (root cause), plus a 10 ms timeout with I2C reset + retry on the codec writes as a safety net. Nothing else. | release (recommended) | `be3f5fa5698f870b5ec7bfd631a66910474991deeccd3a6c50febc6b98fabc82` |
-| `i2cfix-volume-holdmute` | i2cfix **+ improvements:** headphone level at power-up −24 dB instead of −31.5 dB; **hold the wheel ≥ 0.7 s to mute/unmute the mic** (LED turns red, like the mute in RØDE apps); a short jingle in the headphones on mute/unmute. | release | `f47071d7e1e079b3bc05e96fe547bf810933fab95d7fad2562429330c948b840` |
-| `diag` | **Debugging, does not fix anything.** Watchdog ~13 s instead of ~1.6 s, and records where the firmware hung (code address, I2C registers), readable after the reset. For confirming that your mic has the same problem. | ✅ used on hardware | `ee5a84bdb26ef2e7f16bb76813901db1e162f884d711f4e35f183d38b1e43f06` |
-| stock | Unmodified 1.1.9, as extracted. Use it to go back. | — | `11703ba4b1f4ed1d4d59243225547b596ebcbae8fffe48c302a63fd5b70b8d4c` |
+| Variant | What it changes vs stock 1.1.9 | sha256 of the built image |
+|---|---|---|
+| `i2cfix` | **The fix.** I2C interrupt priority raised (root cause), plus a 10 ms timeout with I2C reset + retry on the codec writes as a safety net. Nothing else. | `be3f5fa5698f870b5ec7bfd631a66910474991deeccd3a6c50febc6b98fabc82` |
+| `i2cfix-volume-holdmute` | i2cfix **+ improvements:** headphone level at power-up −24 dB instead of −31.5 dB; **hold the wheel ≥ 0.7 s to mute/unmute the mic** (LED turns red, like the mute in RØDE apps); a short jingle in the headphones on mute/unmute. | `f47071d7e1e079b3bc05e96fe547bf810933fab95d7fad2562429330c948b840` |
+| `diag` | **Debugging, does not fix anything.** Watchdog ~13 s instead of ~1.6 s, and records where the firmware hung (code address, I2C registers), readable after the reset. For confirming that your mic has the same problem. | `ee5a84bdb26ef2e7f16bb76813901db1e162f884d711f4e35f183d38b1e43f06` |
+| stock | Unmodified 1.1.9, as extracted. Use it to go back. | `11703ba4b1f4ed1d4d59243225547b596ebcbae8fffe48c302a63fd5b70b8d4c` |
 
-**What has been tested on hardware so far:** the test image *fix2p*, which has the same priority fix,
-hold-to-mute and jingle as `i2cfix-volume-holdmute` plus a 20 ms timeout and diagnostics, ran with **0 I2C failures and 0 disconnects
-for 4 h 15 min**. The image without the priority fix (*fix1*) had ~19 failures/hour on average, caught by the timeout. The
-release images are those test images with the diagnostics removed and the timeout shortened to 10 ms. See
-[`../research/README.md`](../research/README.md).
+All variants above have been flashed and run on a real PodMic USB (one unit so far; reports from other units
+are welcome). The evidence that the priority fix works comes from the test images: *fix2p* (same priority fix,
+hold-to-mute and jingle as `i2cfix-volume-holdmute`, plus diagnostics and a 20 ms timeout) ran with **0 I2C failures
+and 0 disconnects for 4 h 15 min**, while *fix1* (timeout only, no priority fix) had ~19 I2C failures/hour on
+average, each caught by the timeout. The release images are those test images with the diagnostics removed and the
+timeout shortened to 10 ms. See [`../research/README.md`](../research/README.md).
 
 All variants keep the version marker **1.1.9**. RØDE Central therefore still sees stock 1.1.9 and doesn't offer
 an "update". A factory restore in RØDE Central puts stock firmware back.
@@ -39,7 +40,9 @@ an "update". A factory restore in RØDE Central puts stock firmware back.
 
 1. Install **RØDE Central** (you probably have it already). **Close it** before running the tools; it polls
    the mic and gets in the way.
-2. Download this repository and open a terminal in `firmware\tools`.
+2. Get the tools: download the zip from the
+   [latest release](https://github.com/rumkit/podmicusb-doctor/releases/latest) and unzip it, or clone this
+   repository. Open a terminal in its `firmware\tools` folder.
 3. Extract the stock image, build, check, flash:
 
 ```

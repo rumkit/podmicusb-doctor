@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/podmicusb-doctor.svg" alt="podmicusb-doctor: firmware patches for a healthier mic" width="640">
+</p>
+
 # RØDE PodMic USB: random disconnects on Windows — root cause and firmware fix
 
 The **RØDE PodMic USB** (firmware 1.1.9) randomly drops off USB and reconnects a few seconds later. It was

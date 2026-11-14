@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 180" width="640" height="180" role="img" aria-label="podmicusb-doctor">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2433"/>
+      <stop offset="1" stop-color="#232f45"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3a4558"/>
+      <stop offset="0.5" stop-color="#55627a"/>
+      <stop offset="1" stop-color="#3a4558"/>
+    </linearGradient>
+    <pattern id="mesh" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <path d="M0 0 H6 M0 0 V6" stroke="#8d9bb5" stroke-width="1.2"/>
+    </pattern>
+  </defs>
+
+  <rect width="640" height="180" rx="18" fill="url(#bg)"/>
+
+  <g transform="translate(178 0) scale(-1 1)">
+  <!-- stand stub -->
+  <rect x="97" y="150" width="22" height="22" rx="3" fill="#5a6780"/>
+  <rect x="93" y="144" width="30" height="8" rx="2" fill="#7d8aa3"/>
+  <!-- U yoke (back arm) -->
+  <path d="M108 104 V132 a12 12 0 0 1 -12 12" fill="none" stroke="#5a6780" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- mic, tilted -->
+  <g transform="translate(108 104) rotate(28)">
+    <!-- body -->
+    <rect x="-46" y="-24" width="92" height="48" rx="10" fill="url(#body)"/>
+    <rect x="-10" y="-24" width="5" height="48" fill="#2b3446"/>
+    <rect x="22" y="-24" width="5" height="48" fill="#2b3446"/>
+    <!-- grille head -->
+    <rect x="-80" y="-30" width="56" height="60" rx="10" fill="#4a566d"/>
+    <rect x="-80" y="-30" width="56" height="60" rx="10" fill="url(#mesh)"/>
+    <rect x="-30" y="-30" width="8" height="60" rx="3" fill="#2b3446"/>
+    <!-- front face -->
+    <ellipse cx="-80" cy="0" rx="9" ry="30" fill="#3a4558"/>
+    <ellipse cx="-80" cy="0" rx="9" ry="30" fill="url(#mesh)"/>
+    <ellipse cx="-80" cy="0" rx="9" ry="30" fill="none" stroke="#2b3446" stroke-width="2"/>
+    <!-- bandage across the body -->
+    <g transform="translate(-40 0) rotate(45 -12 0)">
+      <rect x="-50" y="-10" width="76" height="20" rx="10" fill="#f2c79b"/>
+      <rect x="-24" y="-10" width="24" height="20" fill="#e3ad7c"/>
+      <g fill="#c98f5e">
+        <circle cx="-19" cy="-4" r="1.4"/><circle cx="-12" cy="-4" r="1.4"/><circle cx="-5" cy="-4" r="1.4"/>
+        <circle cx="-19" cy="4" r="1.4"/><circle cx="-12" cy="4" r="1.4"/><circle cx="-5" cy="4" r="1.4"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- U yoke (front arm) + knob -->
+  <path d="M123 104 V132 a12 12 0 0 1 -12 12 H103" fill="none" stroke="#9aa7bf" stroke-width="7" stroke-linecap="round"/>
+  <rect x="111" y="92" width="24" height="24" rx="6" fill="#9aa7bf"/>
+  <circle cx="123" cy="104" r="4" fill="#d9a441"/>
+
+  </g>
+
+  <!-- medical cross badge, clear of the mic -->
+  <circle cx="170" cy="26" r="16" fill="#e5484d"/>
+  <path d="M166 16 h8 v6 h6 v8 h-6 v6 h-8 v-6 h-6 v-8 h6 z" fill="#fff"/>
+
+  <!-- text -->
+  <text x="180" y="92" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="40" font-weight="700" fill="#e8edf5">podmicusb<tspan fill="#e5484d">-doctor</tspan></text>
+  <text x="182" y="124" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="17" fill="#9aa7bf">firmware patches for a healthier mic</text>
+</svg>

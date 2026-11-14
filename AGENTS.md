@@ -16,6 +16,7 @@ a build script that applies them to the user's own stock image, a Windows HID fl
 | `firmware/tests/` | offline unit tests (synthetic images) |
 | `firmware/dev/` | developer tools (assembler, holdmute emulator; both need Rizin) |
 | `research/README.md` | summary of the investigation; `research/NOTES.md` = chronological log, cite sections as (3s) etc. |
+| `docker/` | Linux RE lab image (Rizin + rz-ghidra, TShark); not needed to use the fix |
 
 ## Hard rules: a real mic can be bricked or wedged
 1. **Never raise the version marker** (u16 at image offset 0x20, `19 01` = 1.1.9). The bootloader rejects an image

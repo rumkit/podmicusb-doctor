@@ -1,0 +1,19 @@
+# This repo must never contain RØDE firmware (stock or patched), RØDE software, or USB captures.
+# Users build images locally from their own RØDE Central install (see firmware/README.md).
+*.bin
+*.hex
+*.dll
+*.exe
+*.msi
+*.pkg
+*.apk
+*.xapk
+*.pcap
+*.pcapng
+*.log
+*.wav
+
+__pycache__/
+*.pyc
+/build/
+/out/

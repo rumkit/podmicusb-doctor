@@ -26,14 +26,28 @@ STOCK_SIZE = 47104
 SIGNATURE = bytes.fromhex("00200020317d0008")
 
 
+# Default install: C:\Program Files\RØDE Microphones\RODE Central\rode_bridge.dll
+DEFAULT_SUBDIR = os.path.join("R\u00d8DE Microphones", "RODE Central")
+# Fallback search below Program Files: any vendor/app folder named R*DE* (RØDE, RODE) or *Central*
+SEARCH_DIRS = ("R*DE*", "*Central*")
+
+
 def find_dll(path):
-    if path and os.path.isfile(path):
-        return path
-    roots = [path] if path else [os.environ.get(v) for v in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)")]
-    for root in filter(None, roots):
-        pattern = "**" if path else "*R*DE*Central*/**"
-        for p in glob.glob(os.path.join(root, pattern, "rode_bridge.dll"), recursive=True):
+    if path:
+        if os.path.isfile(path):
+            return path
+        hits = glob.glob(os.path.join(glob.escape(path), "**", "rode_bridge.dll"), recursive=True)
+        return hits[0] if hits else None
+    roots = [r for r in dict.fromkeys(os.environ.get(v) for v in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)")) if r]
+    for root in roots:
+        p = os.path.join(root, DEFAULT_SUBDIR, "rode_bridge.dll")
+        if os.path.isfile(p):
             return p
+    for root in roots:
+        for d in SEARCH_DIRS:
+            hits = glob.glob(os.path.join(glob.escape(root), d, "**", "rode_bridge.dll"), recursive=True)
+            if hits:
+                return hits[0]
     return None
 
 

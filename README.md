@@ -15,11 +15,12 @@ disconnect you see. **Fix:** raise the I2C interrupt priority (two bytes in stoc
 safety net. In testing, an image with the fix ran for over 4 hours with zero I2C failures, against ~19 per hour without it
 (caught by the timeout).
 
-Reported to RØDE support; the ticket was closed without a fix.
+The original issue was reported to RØDE support; the ticket was closed without a fix.
 
 > [!WARNING]
-> Flashing modified firmware is **at your own risk**. It may void your warranty, and a failed flash needs the
-> recovery steps in [`firmware/README.md`](firmware/README.md#recovery). Not affiliated with or endorsed by RØDE.
+> Flashing modified firmware is **at your own risk**. It may void your warranty, brick your mic or make demons fly
+> out of your nose. If a flash fails, follow the recovery steps in [`firmware/README.md`](firmware/README.md#recovery).
+> Not affiliated with or endorsed by RØDE.
 
 ## Contents
 
@@ -54,7 +55,6 @@ Read [`firmware/README.md`](firmware/README.md) first: status of each variant, s
 ## Status
 
 - Root cause identified and confirmed with test images on one unit (see [research](research/README.md)).
-- The `i2cfix` and `i2cfix-volume-holdmute` images are built and checked offline, **not yet hardware-tested in their final form**.
 - Only firmware 1.1.9 is supported.
 
 Reports from other PodMic USB owners are welcome, especially `diag` results, and whether the problem happens on

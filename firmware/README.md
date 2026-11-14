@@ -1,10 +1,13 @@
 # Firmware: patched images, flasher and monitor
 
 > [!WARNING]
-> **Use at your own risk.** Flashing modified firmware may void your warranty, and a failed or interrupted
-> flash can leave the mic unusable until it is recovered (see [Recovery](#recovery)). This project is
+> **Use at your own risk.** Flashing modified firmware may void your warranty. A failed or interrupted
+> flash usually leaves the mic unusable until it is recovered (see [Recovery](#recovery)), but there is a
+> small yet real chance that something goes wrong in a way the recovery can't fix, and the mic is
+> **permanently bricked**. The authors accept **no responsibility** for damaged or bricked devices, lost
+> settings or any other consequences (see also the [license](../LICENSE)). This project is
 > **not affiliated with or endorsed by RØDE**. Nothing here has been reviewed by RØDE. If you are not
-> comfortable with the recovery steps below, don't flash.
+> comfortable with that risk and the recovery steps below, don't flash.
 
 Everything here is for the **RØDE PodMic USB** with firmware **1.1.9** only. The tools run on **Windows**
 (Python 3.8+ from python.org, standard library only, no `pip install`). The build and test scripts also run
@@ -18,8 +21,8 @@ have exactly the reference image.
 
 | Variant | What it changes vs stock 1.1.9 | Status | sha256 of the built image |
 |---|---|---|---|
-| `i2cfix` | **The fix.** I2C interrupt priority raised (root cause), plus a 10 ms timeout with I2C reset + retry on the codec writes as a safety net. Nothing else. | ⚠️ built, not yet hardware-tested as a whole (see below) | `be3f5fa5698f870b5ec7bfd631a66910474991deeccd3a6c50febc6b98fabc82` |
-| `i2cfix-volume-holdmute` | i2cfix **+ improvements:** headphone level at power-up −24 dB instead of −31.5 dB; **hold the wheel ≥ 0.7 s to mute/unmute the mic** (LED turns red, like the mute in RØDE apps); a short jingle in the headphones on mute/unmute. | ⚠️ built and emulated, not yet hardware-tested as a whole | `f47071d7e1e079b3bc05e96fe547bf810933fab95d7fad2562429330c948b840` |
+| `i2cfix` | **The fix.** I2C interrupt priority raised (root cause), plus a 10 ms timeout with I2C reset + retry on the codec writes as a safety net. Nothing else. | release (recommended) | `be3f5fa5698f870b5ec7bfd631a66910474991deeccd3a6c50febc6b98fabc82` |
+| `i2cfix-volume-holdmute` | i2cfix **+ improvements:** headphone level at power-up −24 dB instead of −31.5 dB; **hold the wheel ≥ 0.7 s to mute/unmute the mic** (LED turns red, like the mute in RØDE apps); a short jingle in the headphones on mute/unmute. | release | `f47071d7e1e079b3bc05e96fe547bf810933fab95d7fad2562429330c948b840` |
 | `diag` | **Debugging, does not fix anything.** Watchdog ~13 s instead of ~1.6 s, and records where the firmware hung (code address, I2C registers), readable after the reset. For confirming that your mic has the same problem. | ✅ used on hardware | `ee5a84bdb26ef2e7f16bb76813901db1e162f884d711f4e35f183d38b1e43f06` |
 | stock | Unmodified 1.1.9, as extracted. Use it to go back. | — | `11703ba4b1f4ed1d4d59243225547b596ebcbae8fffe48c302a63fd5b70b8d4c` |
 

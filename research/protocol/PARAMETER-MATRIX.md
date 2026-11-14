@@ -1,6 +1,6 @@
 # PodMic USB — Parameter Encoding Matrix
 
-Canonical inventory of every known configurable parameter, its wire encoding, the **encoding dialect**, a **confidence** rating, and a **recheck** flag. Compiled 2026-07-10 from the capture set + the DSP audit. See companion docs: `PodMic-USB-Protocol.md`, `attack-release-exciter-analysis.md`, `aural-exciter-tune-harmonics-raw-tables.md`.
+Canonical inventory of every known configurable parameter, its wire encoding, the **encoding dialect**, a **confidence** rating, and a **recheck** flag. Compiled 2026-07-10 from the capture set + the DSP audit. Wire format details: [`podmic-usb-hid-spec.md`](podmic-usb-hid-spec.md).
 
 ## Encoding dialects
 
@@ -38,12 +38,12 @@ Confidence: **High** = many points / exact fit / verified against raw; **Medium*
 | Control | Transport | Encoding | Confidence | Recheck |
 |---|---|---|---|---|
 | Input Gain | **USB Audio Class** (not vendor HID) | Feature Unit 2 Volume, `SET_CUR`, signed 16-bit, 1/256 dB (`57 → 0x3900`) | High | No |
-| High-Pass Filter (on/off) | Report ID 8 | `[0x01, 0x00, value, 0x00…]`; off→on = value 0x00 | Medium | Yes — direction unconfirmed; capture on→off; frequency param (if any) unknown |
+| High-Pass Filter (on/off) | Report ID 8 | `[0x01, 0x00, value, 0x00…]`; value 0x01 = ON, 0x00 = OFF (default after factory restore) | High | Partial — direction confirmed by an off→on capture; frequency param (if any) unknown |
 | Processing Off↔Basic | Report ID 8 | param `0x0d` (0x00=Off, 0x01=Basic) | Medium | Yes — capture Advanced→Off |
 | Processing Basic↔Advanced | Report ID 8 | param `0x0b`, value 0x01 (separate bool from 0x0d) | Medium | Yes — 3-way vs two-bool unresolved |
 | Advanced block enables (Comp/NG/AE/BB) | Report ID 4 | `[param_id, 0x02, 0x00…]`; param 0x00/0x01/0x02/0x03; byte1=0x02 on disable | Medium | Yes — need off→on to disambiguate byte1 |
 | Basic: Depth / Sparkle / Punch | Report ID 8 (`0x0c`) + Report 4 | `[0x0c,0x00,idx,pct]` idx 0=Depth/1=Sparkle/2=Punch; also writes Advanced engine (Sparkle→AE Harmonics, Depth→BB Drive, Punch→Comp thr+gain & NG enable+thr+range) | High | No |
-| Firmware update | — | Out of scope (show version + Factory Reset only) | — | No |
+| Firmware update / Factory Reset | Bootloader (PID 0x004B) | See [`bootloader-protocol.md`](bootloader-protocol.md) | High | No |
 
 ## Open items ranked by value
 
@@ -52,4 +52,4 @@ Confidence: **High** = many points / exact fit / verified against raw; **Medium*
 3. **Compressor Threshold** — confirm whether the 16-bit cubic is a display value vs the DSP amplitude.
 4. **NG Attack ÷5** — confirm decimated control-rate hypothesis.
 5. **BB Drive** — ~8-click sweep incl. <20 % and >80 %.
-6. **AE subfield 0x03** and the **HPF / processing-mode / block-enable** direction captures.
+6. **AE subfield 0x03** and the **processing-mode / block-enable** direction captures.

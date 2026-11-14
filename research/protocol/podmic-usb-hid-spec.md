@@ -14,7 +14,7 @@ Reverse-engineered protocol reference for implementing a configuration applicati
 | Device class | `0xEF` (Miscellaneous, Interface Association Descriptor) |
 | USB speed | Full Speed (USB 2.0) |
 
-**Firmware version** is encoded in `bcdDevice` of the standard Device Descriptor (e.g. `0x0119` = 1.1.9). No vendor command is needed to read it.
+**Firmware version** is encoded in `bcdDevice` of the standard Device Descriptor (e.g. `0x0119` = 1.1.9), one hex digit per version part. No vendor command is needed to read it (the service command `'V'`, §11, returns the same value).
 
 ## 2. Interfaces
 
@@ -61,12 +61,12 @@ Report IDs (from the 78-byte HID Report Descriptor; all fields are opaque vendor
 
 | Report ID | Direction | Total bytes on wire | Function |
 |---|---|---|---|
-| `0x01` | Input | 10 | reserved/unobserved |
-| `0x02` | Output | 10 | reserved/unobserved |
+| `0x01` | Input | 10 | replies to Report `0x02` service commands (§11) |
+| `0x02` | Output | 10 | service commands (§11); not used by RODE Central |
 | `0x03` | Input | 29 | read-back/echo channel for Report `0x04` |
 | `0x04` | Output | 29 | DSP block parameters (write + read requests) |
 | `0x05` | Input | 15 | reserved/unobserved |
-| `0x06` | Output | 15 | reserved/unobserved |
+| `0x06` | Output | 15 | unobserved; the firmware has a handler for it (not decoded) |
 | `0x07` | Input | 28 | read-back/echo channel for Report `0x08` |
 | `0x08` | Output | 28 | status poll, simple toggles, Basic-mode sync |
 
@@ -82,11 +82,11 @@ content = [param_id, 0x00, value, 0x00 × 25]
 
 | param_id | Control | Values |
 |---|---|---|
-| `0x01` | High-Pass Filter (bypass flag) | `0x00` = filter ON, `0x01` = bypassed (OFF) |
+| `0x01` | High-Pass Filter | `0x01` = filter ON, `0x00` = OFF (default after a factory restore) |
 | `0x0B` | Processing: Advanced mode enable | `0x00` / `0x01` |
 | `0x0D` | Processing: Basic mode enable | `0x00` / `0x01` |
 
-Note the HPF value is inverted (it is a bypass flag). Processing mode is two independent booleans, not a 3-state enum.
+The HPF direction was confirmed with a capture of switching the filter on (`08 01 00 01`). Processing mode is two independent booleans, not a 3-state enum.
 
 ### 5.2 Parameter read
 
@@ -98,7 +98,7 @@ The device answers on endpoint `0x81` with Report `0x07` (see §7).
 
 ### 5.3 Status poll
 
-RODE Central polls param `0x08` (`content = [0x08, 0x01, 0x00, ...]`) every ~1.15 s; the response value is `0x00` in normal operation. Whether the device requires this poll is unverified.
+RODE Central polls param `0x08` (`content = [0x08, 0x01, 0x00, ...]`): every ~1.15 s in the original captures, every 0.5 s in later ones. The response value is `0x00` in normal operation. In the firmware, param `0x08` reads the **mic mute** state (and param `0x03` the monitoring state). Whether the device requires this poll is unverified.
 
 ### 5.4 Basic-mode slider sync
 
@@ -324,10 +324,25 @@ Read Compressor enable state (response arrives on 0x81 as `03 00 41 <value> ...`
 04 00 03 00 00 ... (29 bytes total)
 ```
 
-## 11. Known unknowns
+## 11. Report `0x02` — service commands
 
-- Report IDs `0x01/0x02/0x05/0x06` are declared but never used by RODE Central.
+Found in the firmware (handler at 0x08008684), **not used by RODE Central**. Format `[0x02, command_letter, args…]`, zero-padded; the reply comes on endpoint `0x81` as Report `0x01`: `[0x01, command_letter, 0x41 ('A') or 0x4E ('N' = unknown command), result…]`.
+
+| Command | Effect |
+|---|---|
+| `'V'` | returns the firmware version (u16, same as `bcdDevice`) |
+| `'R'` | saves settings and reboots into the bootloader (firmware upload: [`bootloader-protocol.md`](bootloader-protocol.md)) |
+| `'L'` | halts the CPU after saving settings; the watchdog then resets the mic |
+| `'T'` | factory test mode (disables the DSP blocks and settings saving) |
+| `'G'` / `'S'` | read / write an audio-codec (NAU88L21) register over I2C. **Don't use: they access the codec directly** |
+| `'B'`, `'E'` | purpose unknown in stock firmware (`'B'` is reused by this project's `diag` image) |
+
+The bootloader reuses Report `0x02` with its own command set (`'I'`, `'E'`, `'R'`); see [`bootloader-protocol.md`](bootloader-protocol.md).
+
+## 12. Known unknowns
+
+- Report IDs `0x05/0x06` are declared but never used by RODE Central; the firmware handles `0x06` (not decoded).
 - Aural Exciter has an extra readable subfield `0x03` (observed value `0x1F`) with no corresponding UI control.
-- Report-8 params `0x03` and `0x04` are read at connect (values `0x00` and `0x5B` observed) but map to no known control.
-- Factory Reset and firmware update commands are not covered by this specification.
-- The effect of omitting the ~1.15 s status poll (§5.3) is untested.
+- Report-8 param `0x04` is read at connect (value `0x5B` observed) but maps to no known control (`0x03` is monitoring, §5.3).
+- Factory Reset is not a separate command: RODE Central re-uploads the stock firmware through the bootloader ([`bootloader-protocol.md`](bootloader-protocol.md)) and then writes the DSP parameters back with Report `0x04`.
+- The effect of omitting the status poll (§5.3) is untested.

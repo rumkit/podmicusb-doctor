@@ -150,7 +150,8 @@ Not proven. What is known:
 
 - Version marker: a u16 at application offset 0x20, copied into USB `bcdDevice` (3b). RØDE Central offers an
   update only when its bundled version is higher than the mic's (2d).
-- Hidden service commands and HID protocol errata: [`protocol/README.md`](protocol/README.md).
+- HID protocol, including the hidden service commands (report 2) and the firmware upload protocol:
+  [`protocol/`](protocol/README.md).
 - The rear wheel (headphone level) resets to step 19 (−31.5 dB) on every power-up. That's stock behaviour, not a
   lost setting (3r). With RØDE Unify/Connect attached a wheel click mutes the mic; otherwise it toggles monitoring (3v).
 - Windows, Linux and Apple hosts are told apart at enumeration (3q). Apple hosts get an iAP2 interface, Linux

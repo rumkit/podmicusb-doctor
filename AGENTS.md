@@ -19,14 +19,14 @@ a build script that applies them to the user's own stock image, a Windows HID fl
 | `docker/` | Linux RE lab image (Rizin + rz-ghidra, TShark); not needed to use the fix |
 
 ## Hard rules: a real mic can be bricked or wedged
-1. **Never raise the version marker** (u16 at image offset 0x20, `19 01` = 1.1.9). The bootloader rejects an image
-   with a version lower than the installed one, so a higher marker can lock users out of returning to stock.
+1. **Never raise the version marker** (u16 at image offset 0x20, `19 01` = 1.1.9): the bootloader's anti-downgrade
+   check could then lock users out of stock (`research/protocol/bootloader-protocol.md` §6).
 2. The flasher must refuse **only a lower** version than the mic reports (not "any different"). Keep that logic and
    its tests.
-3. **Never write pages 46–47** (0x0800F800, 0x0800FC00): they hold the mic's settings. App images are at most 46 pages.
+3. **Never write pages 46–47** (the mic's settings, bootloader-protocol.md §7). App images are at most 46 pages.
 4. Every image needs a valid trailing CRC32 (zlib, little-endian, over all bytes except the last 4). The bootloader
-   checks it only after the last page and then stops responding; recovery is unplug ~10 s, replug, RØDE Central
-   factory restore.
+   checks the image only after the last page; if the check fails it stops responding (recovery:
+   `firmware/README.md#recovery`).
 5. **Don't run device commands** (`flash`, `probe`, `diag-test`, the monitor) unless the human explicitly asks and has
    a mic attached. Tests use the simulated bootloader.
 6. Don't send the hidden service commands `'G'`/`'S'` (codec register read/write over I2C) or `'T'`/`'L'` to a mic.
@@ -39,16 +39,11 @@ a build script that applies them to the user's own stock image, a Windows HID fl
 - Tools in `firmware/tools/` stay **Python standard library only** (Windows users run them with plain `py`).
 
 ## Workflow
-- Tests: `python -m unittest discover -s firmware/tests -v` from the repo root. With a stock image:
-  `PODMIC_STOCK=path/to/podmicusb-1.1.9-stock.bin` also checks the reference sha256s.
-- Changing a patch: edit `patches/<v>.s` → `python3 firmware/dev/assemble.py firmware/patches/<v>.s` → build →
-  update `REFERENCE_SHA256` in `build.py` **and** the table in `firmware/README.md` → run the tests. For i2cfix-volume-holdmute
-  also run `firmware/dev/emu_holdmute.py` on the built image.
+- Tests and the patch-change steps: `firmware/README.md` → "For developers". Run the tests after every change.
 - Mark anything not run on hardware as such in the READMEs. Don't claim it's tested.
 
 ## Firmware facts you need
-- MCU GigaDevice GD32F350 (Cortex-M4, Thumb-2), 64 KB flash, 8 KB RAM. Bootloader 0x08000000–0x08003FFF (not in
-  any file here). App base **0x08004000**, 1 KB pages. Codec NAU88L21 on I2C1 at 0x1B.
+- Hardware and flash layout: `research/README.md` → "Hardware and firmware". App base **0x08004000**, Thumb-2.
 - Disassemble: `rizin -a arm -b 16 -m 0x08004000 -e asm.cpu=cortexm podmicusb-1.1.9-stock.bin` (`af` then `pdg` with
   rz-ghidra).
 - Add-on code goes in the 0xFF gap from **0x0800F460**. i2cfix-volume-holdmute also uses the zeroed reserved vector slots at

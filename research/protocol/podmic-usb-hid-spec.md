@@ -62,7 +62,7 @@ Report IDs (from the 78-byte HID Report Descriptor; all fields are opaque vendor
 | Report ID | Direction | Total bytes on wire | Function |
 |---|---|---|---|
 | `0x01` | Input | 10 | replies to Report `0x02` service commands (§11) |
-| `0x02` | Output | 10 | service commands (§11); not used by RODE Central |
+| `0x02` | Output | 10 | service commands (§11); RØDE Central uses only `'R'` (enter the bootloader for a factory restore) |
 | `0x03` | Input | 29 | read-back/echo channel for Report `0x04` |
 | `0x04` | Output | 29 | DSP block parameters (write + read requests) |
 | `0x05` | Input | 15 | reserved/unobserved |
@@ -77,7 +77,7 @@ All content fields below are given as offsets into the content (i.e. after the R
 ### 5.1 Simple parameter write
 
 ```
-content = [param_id, 0x00, value, 0x00 × 25]
+content = [param_id, 0x00, value, 0x00 × 24]
 ```
 
 | param_id | Control | Values |
@@ -86,12 +86,12 @@ content = [param_id, 0x00, value, 0x00 × 25]
 | `0x0B` | Processing: Advanced mode enable | `0x00` / `0x01` |
 | `0x0D` | Processing: Basic mode enable | `0x00` / `0x01` |
 
-The HPF direction was confirmed with a capture of switching the filter on (`08 01 00 01`). Processing mode is two independent booleans, not a 3-state enum.
+The HPF direction was confirmed with a capture of switching the filter on (`08 01 00 01`). Processing mode is modelled as two independent booleans (`0x0D` Basic, `0x0B` Advanced); a 3-state interpretation is not ruled out, because switching Advanced → Off has not been captured.
 
 ### 5.2 Parameter read
 
 ```
-content = [param_id, 0x01, index, 0x00 × 25]
+content = [param_id, 0x01, index, 0x00 × 24]
 ```
 
 The device answers on endpoint `0x81` with Report `0x07` (see §7).
@@ -105,7 +105,7 @@ RODE Central polls param `0x08` (`content = [0x08, 0x01, 0x00, ...]`): every ~1.
 When a Basic-mode slider changes, the app writes a UI-sync value:
 
 ```
-content = [0x08, 0x0C, 0x00, control_index, value_percent, 0x00 × 23]
+content = [0x0C, 0x00, control_index, value_percent, 0x00 × 23]
 ```
 
 `control_index`: `0` = Depth, `1` = Sparkle, `2` = Punch. `value_percent` is the literal 0–100 value. In addition to this sync write, the app writes the underlying Advanced parameters (§8).
@@ -118,7 +118,7 @@ content = [target_id, opcode, subfield_id, value bytes..., 0x00 padding to 28]
 
 - `opcode` = `0x02` (SET) or `0x03` (GET). For GET, send zeros in the value region; the device answers on `0x81` with Report `0x03` (§7).
 - `target_id`: `0x00` Compressor, `0x01` Noise Gate, `0x02` Aural Exciter, `0x03` Big Bottom.
-- `subfield_id 0x00` on every block = enable toggle: `content = [target, 0x02, 0x00, value]`, value `0x01` = on, `0x00` = off.
+- `subfield_id 0x00` on every block = enable toggle: `content = [target, 0x02, 0x00, value]`, value `0x00` = off (captured), `0x01` = on (inferred; switching a block on has not been captured).
 
 ### 6.1 Field map
 
@@ -242,7 +242,7 @@ fine32 = round( y(x) × 2147483647 )     # 0x7FFFFFFF; low byte is 0x00 except a
 
 Endpoints are exact: `x=0 → 0` (mute), `x=255 → 0x7FFFFFFF` (saturation). The two segments meet at `0.21` (byte 179 → 180). Fit accuracy vs. all logged captures: **RMS 0.11 %, max 0.29 %** of full scale — replaces the earlier sampled table / log-interpolation. Write both the computed fine value and the coarse byte.
 
-> **Needs revalidation:** the fit rests on ~6 captured points with no sampling in bytes 60–150. A short sweep there would confirm the lower cubic against quantization noise. Unrounded coefficients (`0.1310·t − 0.0095·t² + 0.0894·t³`) give RMS 0.039 % if higher precision is wanted. Full residual table: `aural-exciter-tune-harmonics-raw-tables.md`.
+> **Needs revalidation:** the fit rests on ~6 captured points with no sampling in bytes 60–150. A short sweep there would confirm the lower cubic against quantization noise. Unrounded coefficients (`0.1310·t − 0.0095·t² + 0.0894·t³`) give RMS 0.039 % if higher precision is wanted.
 
 ### 9.9 Aural Exciter Tune — piecewise-linear byte table
 
@@ -282,7 +282,7 @@ Full sampled table:
 | 237 | `0x527B9611` | `0x6AE58469` |
 | 255 | `0x54000000` | `0x7FFFFFFF` |
 
-For bytes inside confirmed segments, compute exactly; elsewhere interpolate `W` linearly in the byte between the nearest samples (error < 1 %). Write A, B, and the coarse byte together.
+For bytes inside confirmed segments, compute exactly; elsewhere interpolate `W` linearly in the byte between the nearest samples (error < 1 %). W_B between bytes 107 and 169 rests on two samples only and is provisional. Write A, B, and the coarse byte together.
 
 ### 9.10 Big Bottom Drive — same curve as Harmonics
 
@@ -326,7 +326,7 @@ Read Compressor enable state (response arrives on 0x81 as `03 00 41 <value> ...`
 
 ## 11. Report `0x02` — service commands
 
-Found in the firmware (handler at 0x08008684), **not used by RODE Central**. Format `[0x02, command_letter, args…]`, zero-padded; the reply comes on endpoint `0x81` as Report `0x01`: `[0x01, command_letter, 0x41 ('A') or 0x4E ('N' = unknown command), result…]`.
+Found in the firmware (handler at 0x08008684). RØDE Central uses only `'R'`, for a factory restore; the others are hidden. Format `[0x02, command_letter, args…]`, zero-padded; the reply comes on endpoint `0x81` as Report `0x01`: `[0x01, command_letter, 0x41 ('A') or 0x4E ('N' = unknown command), result…]`.
 
 | Command | Effect |
 |---|---|

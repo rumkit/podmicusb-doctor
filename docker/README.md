@@ -15,9 +15,8 @@ The Linux container the firmware was analysed in. You **don't need it to use the
 | Node.js 26, [REA](https://www.npmjs.com/package/rea-agents), Claude Code | the AI-assisted reverse-engineering setup the investigation was done with | no |
 | Neovim, build tools | convenience / building Rizin | — |
 
-Opening the firmware: `rizin -a arm -b 16 -m 0x08004000 -e asm.cpu=cortexm podmicusb-1.1.9-stock.bin`
-(see [`AGENTS.md`](../AGENTS.md) for key addresses). The stock image comes from your own RØDE Central install via
-`firmware/tools/extract_stock.py` (run it on Windows, then copy the `.bin` into the mounted folder).
+For the Rizin command line and the key firmware addresses see [`AGENTS.md`](../AGENTS.md) → "Firmware facts".
+The stock image comes from your own RØDE Central install via `firmware/tools/extract_stock.py` (run it on Windows, then copy the `.bin` into the mounted folder).
 
 ## Build
 

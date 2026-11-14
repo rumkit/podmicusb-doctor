@@ -105,9 +105,9 @@ the stock 1.1.9 image bundled in RØDE Central (47,104 B = exactly 46 pages).
   previously installed version or a fixed minimum (both were 1.1.9), and where it keeps that value.
 - **No signature:** a modified 1.1.9 image with a correct CRC32 was accepted and runs.
 - On **rejection the bootloader wedges**: the SET_REPORT for the last page never completes (Windows error
-  121, ERROR_SEM_TIMEOUT), and it stays enumerated as PID 0x004B but stops replying. Recovery: unplug ~10 s,
-  replug (the mic comes up in the bootloader because the app is invalid), then flash a valid image, e.g. with
-  RØDE Central's factory restore. Proven once (NOTES 3g).
+  121, ERROR_SEM_TIMEOUT), and it stays enumerated as PID 0x004B but stops replying. After a power cycle it
+  comes up in the bootloader again (§2), so a valid image can be flashed: see
+  [recovery](../../firmware/README.md#recovery). Proven once (NOTES 3g).
 
 Consequence: **never flash an image with a higher version marker than the stock firmware you may want to go
 back to.** Once installed, the anti-downgrade check could reject stock forever.

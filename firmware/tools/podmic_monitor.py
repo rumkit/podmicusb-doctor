@@ -7,10 +7,12 @@ podmic_flash.py next to it (HID layer). CLOSE RODE CENTRAL first (its own polls 
 Two modes:
   basic (default)  discovery + liveness only. Sends nothing but the status request RODE Central itself sends
                    every 0.5 s:  SET_REPORT report 8 '08 08 01 00..'  ->  input report 7 '07 08 41 ..'
-  --advanced       basic + the error reports of the modified diagnostic firmware (diag / fix1 / fix2 images from
-                   this project): hang snapshot at start and after every re-enumeration, and a check of the
-                   I2C-recovery counter every --rec-every s (hidden service command 02 'B'). On stock firmware 'B'
-                   is a harmless no-op; the monitor notes that once and carries on in basic mode.
+  --advanced       basic + the hang record of this project's diag image, read at start and after every
+                   re-enumeration (hidden service command 02 'B'). On other firmware 'B' is a harmless no-op;
+                   the monitor notes that once and carries on in basic mode. (It also reads the I2C-recovery
+                   counter of the unpublished fix1/fix2 test images, see research/NOTES.md.)
+                   The published i2cfix images keep no record: I2C failures caught by their timeout are
+                   invisible here, only disconnects show up.
 
 What it logs (console + log file):
   STALL    a poll went unanswered (mic main loop not responding)
@@ -21,8 +23,8 @@ What it logs (console + log file):
   BACK     the mic re-enumerated, and how long that took
   ALIVE    heartbeat every 5 min with the poll count
   advanced mode only:
-  DIAG     hang snapshot / recovery counters read back at FOUND and after every BACK
-  RECOVER-I2C  the mic caught an I2C hang itself and recovered without disconnecting (fix1/fix2 firmware)
+  DIAG     the diag image's hang record, read back at FOUND and after every BACK
+  RECOVER-I2C  (fix1/fix2 test images only) the mic caught an I2C hang and recovered without disconnecting
 
 usage:  py podmic_monitor.py [--advanced] [--interval 1.0] [--rec-every 30] [--log podmic_monitor.log]
 Stop with Ctrl+C.
@@ -131,10 +133,10 @@ def read_fw_reports(dev, log):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--advanced", action="store_true",
-                    help="also read the error reports of the modified diagnostic firmware (diag/fix1/fix2)")
+                    help="also read the hang record of the diag image")
     ap.add_argument("--interval", type=float, default=1.0, help="seconds between polls (default 1.0)")
     ap.add_argument("--rec-every", type=float, default=30.0,
-                    help="--advanced: seconds between I2C-recovery checks on fix1/fix2 firmware (default 30)")
+                    help="--advanced: seconds between I2C-recovery checks (fix1/fix2 test images only; default 30)")
     ap.add_argument("--log", default="podmic_monitor.log", help="log file (appended)")
     args = ap.parse_args(argv)
 

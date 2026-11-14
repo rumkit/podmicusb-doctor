@@ -28,7 +28,7 @@ The original issue was reported to RØDE support; the ticket was closed without 
 | Path | What |
 |---|---|
 | [`firmware/`](firmware/) | **Start here if you want the fix.** Patch variants, build script, flasher, monitor, recovery. [README](firmware/README.md) |
-| [`firmware/tools/`](firmware/tools/) | `extract_stock.py` · `build.py` · `podmic_flash.py` · `podmic_monitor.py` (Windows, Python 3, no dependencies) |
+| [`firmware/tools/`](firmware/tools/) | `extract_stock.py` · `build.py` · `podmic_flash.py` · `podmic_monitor.py` (Windows, Python 3.8+, no dependencies) |
 | [`firmware/patches/`](firmware/patches/) | Patch sources (Thumb-2 assembly) and assembled bytes |
 | [`research/`](research/) | How the cause was found. [Summary](research/README.md) · [full lab notebook](research/NOTES.md) · [HID protocol](research/protocol/) · [firmware upload protocol](research/protocol/bootloader-protocol.md) |
 | [`docker/`](docker/) | The Linux reverse-engineering lab (Rizin + rz-ghidra, TShark, …) the analysis ran in. [README](docker/README.md) |
@@ -39,7 +39,7 @@ The original issue was reported to RØDE support; the ticket was closed without 
 No firmware files are distributed here. The scripts build the patched image from the stock firmware inside your
 own RØDE Central install, and check that the result is byte-identical to the reference build.
 Download the zip from the [latest release](https://github.com/rumkit/podmicusb-doctor/releases/latest) and unzip
-it, or clone this repository. Then, on Windows with Python 3 installed:
+it, or clone this repository. Then, on Windows with Python 3.8+ installed:
 
 ```
 cd firmware\tools

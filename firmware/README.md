@@ -4,9 +4,9 @@
 > **Use at your own risk.** Flashing modified firmware may void your warranty. A failed or interrupted
 > flash usually leaves the mic unusable until it is recovered (see [Recovery](#recovery)), but there is a
 > small yet real chance that something goes wrong in a way the recovery can't fix, and the mic is
-> **permanently bricked**. The authors accept no responsibility for damaged or bricked devices, lost
+> permanently bricked. The authors accept no responsibility for damaged or bricked devices, lost
 > settings or any other consequences (see also the [license](../LICENSE)). This project is
-> **not affiliated with or endorsed by RØDE**. Nothing here has been reviewed by RØDE. If you are not
+> not affiliated with or endorsed by RØDE. Nothing here has been reviewed by RØDE. If you are not
 > comfortable with that risk and the recovery steps below, don't flash.
 
 Everything here is for the **RØDE PodMic USB** with firmware **1.1.9** only. The tools run on **Windows**
@@ -21,20 +21,16 @@ have exactly the reference image.
 
 | Variant | What it changes vs stock 1.1.9 | sha256 of the built image |
 |---|---|---|
-| `i2cfix` | **The fix.** I2C interrupt priority raised (root cause), plus a 10 ms timeout with I2C reset + retry on the codec writes as a safety net. Nothing else. | `be3f5fa5698f870b5ec7bfd631a66910474991deeccd3a6c50febc6b98fabc82` |
+| `i2cfix` | **The fix.** I2C interrupt priority raised (root cause), plus a 10 ms timeout with I2C reset + retry on every blocking I2C wait, as a safety net. Nothing else. | `be3f5fa5698f870b5ec7bfd631a66910474991deeccd3a6c50febc6b98fabc82` |
 | `i2cfix-volume-holdmute` | i2cfix **+ improvements:** headphone level at power-up −24 dB instead of −31.5 dB; **hold the wheel ≥ 0.7 s to mute/unmute the mic** (LED turns red, like the mute in RØDE apps); a short jingle in the headphones on mute/unmute. | `f47071d7e1e079b3bc05e96fe547bf810933fab95d7fad2562429330c948b840` |
 | `diag` | **Debugging, does not fix anything.** Watchdog ~13 s instead of ~1.6 s, and records where the firmware hung (code address, I2C registers), readable after the reset. For confirming that your mic has the same problem. | `ee5a84bdb26ef2e7f16bb76813901db1e162f884d711f4e35f183d38b1e43f06` |
 | stock | Unmodified 1.1.9, as extracted. Use it to go back. | `11703ba4b1f4ed1d4d59243225547b596ebcbae8fffe48c302a63fd5b70b8d4c` |
 
 All variants above have been flashed and run on a real PodMic USB (one unit so far; reports from other units
-are welcome). The evidence that the priority fix works comes from the test images: *fix2p* (same priority fix,
-hold-to-mute and jingle as `i2cfix-volume-holdmute`, plus diagnostics and a 20 ms timeout) ran with 0 I2C failures
-and 0 disconnects for 4 h 15 min, while *fix1* (timeout only, no priority fix) had ~19 I2C failures/hour on
-average, each caught by the timeout. The release images are those test images with the diagnostics removed and the
-timeout shortened to 10 ms. See [`../research/README.md`](../research/README.md).
+are welcome). The test runs showing that the priority fix works are in
+[`research/README.md`](../research/README.md#how-the-cause-was-found).
 
-All variants keep the version marker **1.1.9**. RØDE Central therefore still sees stock 1.1.9 and doesn't offer
-an "update". A factory restore in RØDE Central puts stock firmware back.
+All variants keep version 1.1.9, so RØDE Central sees stock 1.1.9 and its factory restore still works.
 
 ## Quick start (Windows)
 
@@ -56,8 +52,7 @@ If RØDE Central is installed somewhere else: `py extract_stock.py "D:\path\to\R
 `flash` asks you to type `FLASH` before it erases anything. The flash itself takes about 4 s. **Don't unplug the
 mic while it runs.** At the end the mic restarts and the flasher prints the version it reports (1.1.9).
 
-**Settings:** the flasher never touches the two flash pages that hold the mic's settings. Note that i2cfix-volume-holdmute sets
-the headphone level to −24 dB at every power-up; stock firmware does the same with −31.5 dB.
+The headphone level is not a stored setting: stock firmware also resets it at every power-up (to −31.5 dB).
 
 ## podmic_flash.py
 
@@ -91,6 +86,9 @@ That tells a watchdog reset (firmware hung) from other causes. Works with any fi
 py podmic_monitor.py                # basic: polls the mic once per second, logs STALL / GONE / BACK
 py podmic_monitor.py --advanced     # also reads the diag image's hang record after every reconnect
 ```
+
+The i2cfix images keep no record: an I2C failure caught by their timeout is invisible to the monitor, so with
+them it only shows disconnects.
 
 Output goes to the console and `podmic_monitor.log`. Reading the GONE line:
 
@@ -145,5 +143,12 @@ PODMIC_STOCK=podmicusb-1.1.9-stock.bin python -m unittest ...   # also checks th
 | `dev/emu_holdmute.py` | emulates the holdmute jingle and button code from a built image, writes WAV previews; needs `rizin` |
 | `tests/` | offline tests (synthetic images) |
 
-If you change a patch, update `REFERENCE_SHA256` in `build.py` and the table above. Agents: see
-[`../AGENTS.md`](../AGENTS.md).
+Changing a patch (paths from the repo root):
+
+1. Edit `firmware/patches/<variant>.s`, then assemble it:
+   `python3 firmware/dev/assemble.py firmware/patches/<variant>.s` (writes the `.json`).
+2. Build the image with `firmware/tools/build.py`.
+3. Update `REFERENCE_SHA256` in `build.py` **and** the sha256 table above.
+4. Run the tests. For `i2cfix-volume-holdmute` also run `dev/emu_holdmute.py` on the built image.
+
+Agents: see [`../AGENTS.md`](../AGENTS.md).

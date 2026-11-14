@@ -90,7 +90,7 @@ Not proven. What is known:
 - The rear wheel (headphone level) resets to step 19 (−31.5 dB) on every power-up. That's stock behaviour, not a
   lost setting (3r). With RØDE Unify/Connect attached a wheel click mutes the mic; otherwise it toggles monitoring (3v).
 - Windows, Linux and Apple hosts are told apart at enumeration (3q). Apple hosts get an iAP2 interface, Linux
-  gets an extra 16-bit mic alt setting.
+  gets an extra 16-bit mic alt setting (inferred from the code, not checked with `lsusb`).
 
 ## Not included
 

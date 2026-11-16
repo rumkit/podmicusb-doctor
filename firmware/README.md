@@ -30,9 +30,6 @@ All variants keep version 1.1.9, so RØDE Central sees stock 1.1.9 and its facto
 
 ## Quick start (Windows)
 
-Don't want to install Python? Use the installer `podmicusb-doctor.exe` instead, see
-[the main README](../README.md#option-a-the-installer-no-python-needed). It does the same steps.
-
 This repository contains **no RØDE firmware**. You extract the stock image from your own RØDE Central install
 and `build.py` patches it on your machine. The build output is checked against the sha256 in the table above, so
 you know you have exactly the reference image.
@@ -46,13 +43,10 @@ you know you have exactly the reference image.
 
 ```
 py extract_stock.py                        # finds rode_bridge.dll in Program Files -> podmicusb-1.1.9-stock.bin
-py build.py i2cfix-volume-holdmute         # -> podmicusb-1.1.9-i2cfix-volume-holdmute.bin, prints "= reference build"
-py podmic_flash.py check podmicusb-1.1.9-i2cfix-volume-holdmute.bin
-py podmic_flash.py flash podmicusb-1.1.9-i2cfix-volume-holdmute.bin
+py build.py i2cfix                         # -> podmicusb-1.1.9-i2cfix.bin, prints "= reference build"
+py podmic_flash.py check podmicusb-1.1.9-i2cfix.bin
+py podmic_flash.py flash podmicusb-1.1.9-i2cfix.bin
 ```
-
-This installs the fix **with** the extras: hold the wheel for about 0.7 s to mute or unmute the mic. For the fix
-alone, use `i2cfix` in the last three lines instead (see [Variants](#variants)).
 
 If RØDE Central is installed somewhere else: `py extract_stock.py "D:\path\to\RODE Central"`.
 `flash` asks you to type `FLASH` before it erases anything. The flash itself takes about 4 s. **Don't unplug the
@@ -120,7 +114,7 @@ an issue with the DIAG lines if you see something different.
 ## Recovery
 
 - **Back to stock:** `py podmic_flash.py flash podmicusb-1.1.9-stock.bin` (the extracted stock image), or
-  `podmicusb-doctor.exe` → "Original RØDE firmware 1.1.9", or **RØDE Central → factory restore**.
+  **RØDE Central → factory restore**.
 - **Flash failed / mic not responding:** unplug the mic, wait ~10 s, plug it back in, then run RØDE Central's
   **factory restore**. This has been tested after a rejected image. The bootloader lives in its own flash area
   (0x08000000–0x08003FFF), which the flasher never writes, so it stays usable.
@@ -137,11 +131,7 @@ supposed to win. If the new version still has the bug, the patches would need po
 
 ```
 python -m unittest discover -s firmware/tests -v            # from the repo root; no RØDE data needed
-python -m unittest discover -s wizard/tests -v              # the installer (simulated mic)
 ```
-
-The installer exe is built by `.github/workflows/build.yml` (PyInstaller) on every push; a `v*` tag also creates
-a draft release with the exe, the tools zip and `SHA256SUMS`.
 
 With a stock image the tests also check the reference sha256s:
 

@@ -1,0 +1,82 @@
+# Tests, builds podmicusb-doctor.exe + the tools zip, attests their build provenance.
+# On a v* tag it also creates a DRAFT release with those files; publishing it stays a manual step.
+name: build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write        # draft release on tags
+      id-token: write        # provenance attestation (Sigstore)
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Tests (offline, no RØDE firmware)
+        run: |
+          python -m unittest discover -s firmware/tests -v
+          python -m unittest discover -s wizard/tests -v
+
+      - name: Name
+        id: name
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="$GITHUB_REF_NAME"; else v="dev-${GITHUB_SHA::7}"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Build podmicusb-doctor.exe
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller==6.11.1
+          pyinstaller --onefile --console --clean --noconfirm --name podmicusb-doctor `
+            --paths firmware/tools --add-data "firmware/patches/*.json;patches" `
+            wizard/podmicusb_doctor.py
+
+      - name: Tools zip
+        shell: bash
+        run: |
+          python - "dist/podmicusb-doctor-${{ steps.name.outputs.version }}.zip" <<'EOF'
+          import glob, sys, zipfile
+          files = ["README.md", "LICENSE", "firmware/README.md"] + sorted(glob.glob("firmware/tools/*.py")) \
+                  + sorted(glob.glob("firmware/patches/*.json"))
+          with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as z:
+              for f in files:
+                  z.write(f)
+                  print(f)
+          EOF
+
+      - name: Checksums
+        shell: bash
+        run: cd dist && sha256sum podmicusb-doctor.exe *.zip > SHA256SUMS && cat SHA256SUMS
+
+      - uses: actions/attest-build-provenance@v2
+        if: github.event_name != 'pull_request'
+        with:
+          subject-path: |
+            dist/podmicusb-doctor.exe
+            dist/*.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: podmicusb-doctor-${{ steps.name.outputs.version }}
+          path: dist/*
+
+      - name: Draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --draft --verify-tag --title "$GITHUB_REF_NAME" --notes "Draft - edit the notes before publishing."

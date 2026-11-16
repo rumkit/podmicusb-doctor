@@ -27,34 +27,44 @@ The original issue was reported to RØDE support; the ticket was closed without 
 
 | Path | What |
 |---|---|
-| [`firmware/`](firmware/) | **Start here if you want the fix.** Patch variants, build script, flasher, monitor, recovery. [README](firmware/README.md) |
+| [`wizard/`](wizard/) | Source of the installer `podmicusb-doctor.exe` (uses the scripts in `firmware/tools/`) |
+| [`firmware/`](firmware/) | Patch variants, build script, flasher, monitor, recovery. [README](firmware/README.md) |
 | [`firmware/tools/`](firmware/tools/) | `extract_stock.py` · `build.py` · `podmic_flash.py` · `podmic_monitor.py` (Windows, Python 3.8+, no dependencies) |
 | [`firmware/patches/`](firmware/patches/) | Patch sources (Thumb-2 assembly) and assembled bytes |
 | [`research/`](research/) | How the cause was found. [Summary](research/README.md) · [full lab notebook](research/NOTES.md) · [HID protocol](research/protocol/) · [firmware upload protocol](research/protocol/bootloader-protocol.md) |
 | [`docker/`](docker/) | The Linux reverse-engineering lab (Rizin + rz-ghidra, TShark, …) the analysis ran in. [README](docker/README.md) |
 | [`AGENTS.md`](AGENTS.md) | Orientation and safety rules for AI coding agents (and humans) working on this repo |
 
-## Getting the fix, in short
+## Getting the fix
 
-No firmware files are distributed here. The scripts build the patched image from the stock firmware inside your
-own RØDE Central install, and check that the result is byte-identical to the reference build.
-Download the zip from the [latest release](https://github.com/rumkit/podmicusb-doctor/releases/latest) and unzip
-it, or clone this repository. Then, on Windows with Python 3.8+ installed:
+No firmware files are distributed here. The tools take the stock 1.1.9 firmware from your own RØDE Central
+install or from RØDE's own update server, patch it on your machine, and check that the result is byte-identical
+to the reference build. Everything runs on Windows. Read the [safety notes and recovery steps](firmware/README.md#recovery)
+first.
 
-```
-cd firmware\tools
-py extract_stock.py
-py build.py i2cfix
-py podmic_flash.py flash podmicusb-1.1.9-i2cfix.bin
-```
+### Option A: the installer (no Python needed)
 
-| Variant (file: `podmicusb-1.1.9-<variant>.bin`) | |
+1. Download `podmicusb-doctor.exe` from the [latest release](https://github.com/rumkit/podmicusb-doctor/releases/latest).
+2. Close RØDE Central, plug in the mic and double-click the exe. Windows may warn "Windows protected your PC",
+   because the exe isn't code-signed: click **More info → Run anyway**.
+3. Pick what to install and confirm. The update takes about 10 seconds. Don't unplug the mic while it runs.
+
+| Menu entry | What it does |
 |---|---|
-| `i2cfix` | the fix only |
-| `i2cfix-volume-holdmute` | the fix + louder headphone default + hold the wheel to mute, with a headphone jingle |
-| `diag` | records where the firmware hangs, to confirm you have the same problem; fixes nothing |
+| Fix only | the fix, nothing else changes |
+| Fix + extras | the fix + louder headphone default + **hold the wheel to mute**, with a headphone jingle |
+| Diagnostic | records where the firmware hangs, to confirm you have the same problem; fixes nothing |
+| Original RØDE firmware 1.1.9 | go back to stock |
 
-Read [`firmware/README.md`](firmware/README.md) first: what each variant does, safety rules, recovery.
+The exe is built from this repository by GitHub Actions. To check that the file you downloaded is exactly that
+build: `gh attestation verify podmicusb-doctor.exe --repo rumkit/podmicusb-doctor`.
+`podmicusb-doctor.exe --help` lists the options (a self-test that needs no mic, more detailed output, preferring the
+download over a local RØDE Central copy).
+
+### Option B: the Python scripts
+
+The same steps as separate scripts (Python 3.8+, standard library only), for people who want to see each step or
+keep the built image files. See [`firmware/README.md`](firmware/README.md).
 
 ## Status
 

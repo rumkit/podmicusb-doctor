@@ -16,7 +16,11 @@
 __pycache__/
 *.pyc
 /build/
+/dist/
 /out/
+*.spec
+# written by the CI build from the git tag
+wizard/_version.py
 
 # docker/ build inputs and run-time secrets
 ghidra*.zip

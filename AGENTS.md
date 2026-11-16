@@ -13,6 +13,8 @@ a build script that applies them to the user's own stock image, a Windows HID fl
 |---|---|
 | `firmware/tools/` | user-facing scripts: `extract_stock.py`, `build.py`, `podmic_flash.py`, `podmic_monitor.py` |
 | `firmware/patches/*.s` → `*.json` | add-on sources → assembled bytes + labels (`firmware/dev/assemble.py`, needs `rz-asm`) |
+| `wizard/` | installer `podmicusb-doctor.exe`: reuses `firmware/tools/` (never duplicate their safety logic); tests in `wizard/tests/`; exe built by `.github/workflows/build.yml` (PyInstaller + certifi, build-time only) |
+| `assets/` | logo and exe icon (`icon.svg` → `podmicusb-doctor.ico`, a static asset) |
 | `firmware/tests/` | offline unit tests (synthetic images) |
 | `firmware/dev/` | developer tools (assembler, `i2cfix-volume-holdmute` emulator; both need Rizin) |
 | `research/README.md` | summary of the investigation; `research/NOTES.md` = chronological log, cite sections as (3s) etc. |

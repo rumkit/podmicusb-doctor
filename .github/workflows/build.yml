@@ -1,0 +1,101 @@
+# Tests and builds podmicusb-doctor.exe + the tools zip on every push/PR, with a read-only token.
+# Only on a v* tag, a separate job attests their build provenance and creates a DRAFT release;
+# publishing it stays a manual step.
+name: build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Tests (offline, no RØDE firmware)
+        run: |
+          python -m unittest discover -s firmware/tests -v
+          python -m unittest discover -s wizard/tests -v
+
+      - name: Name
+        id: name
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="$GITHUB_REF_NAME"; else v="dev-${GITHUB_SHA::7}"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          # program version shown by the exe: the tag without its "v" (v1.1.0 -> 1.1.0), dev-<sha> otherwise
+          printf 'VERSION = "%s"\n' "${v#v}" > wizard/_version.py
+          cat wizard/_version.py
+
+      - name: Build podmicusb-doctor.exe
+        run: |
+          # certifi: CA list bundled in the exe; a fresh Windows may lack the root RØDE's server chains to
+          python -m pip install --disable-pip-version-check pyinstaller==6.22.3 certifi==2026.10.23
+          pyinstaller --onefile --console --clean --noconfirm --name podmicusb-doctor `
+            --icon assets/podmicusb-doctor.ico `
+            --paths firmware/tools --add-data "firmware/patches/*.json;patches" `
+            wizard/podmicusb_doctor.py
+
+      - name: Tools zip
+        shell: bash
+        env:
+          VERSION: ${{ steps.name.outputs.version }}
+        run: |
+          python - "dist/podmicusb-doctor-$VERSION.zip" <<'EOF'
+          import glob, sys, zipfile
+          files = ["README.md", "LICENSE", "firmware/README.md"] + sorted(glob.glob("firmware/tools/*.py")) \
+                  + sorted(glob.glob("firmware/patches/*.json"))
+          with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as z:
+              for f in files:
+                  z.write(f)
+                  print(f)
+          EOF
+
+      - name: Checksums
+        shell: bash
+        run: cd dist && sha256sum podmicusb-doctor.exe *.zip > SHA256SUMS && cat SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: podmicusb-doctor-${{ steps.name.outputs.version }}
+          path: dist/*
+
+  release:
+    # tags only: the one job with write access and an OIDC token
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # draft release
+      id-token: write        # provenance attestation (Sigstore)
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: podmicusb-doctor-${{ github.ref_name }}
+          path: dist
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/podmicusb-doctor.exe
+            dist/*.zip
+
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --draft --verify-tag --title "$GITHUB_REF_NAME" --notes "Draft - edit the notes before publishing."

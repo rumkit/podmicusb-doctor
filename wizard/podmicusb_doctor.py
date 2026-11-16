@@ -22,6 +22,7 @@ All safety rules are the flasher's (firmware/tools/podmic_flash.py): CRC/vector 
 written, only a lower image version is refused, every step must be acknowledged.
 """
 import hashlib
+import http.client
 import json
 import os
 import ssl
@@ -77,7 +78,17 @@ class Abort(Exception):
     pass
 
 
+def drop_pending_keys():
+    """Discard keys typed ahead (e.g. an Enter pressed after a single-key menu choice), so they can't answer
+    the next line prompt."""
+    if console_keys():
+        import msvcrt
+        while msvcrt.kbhit():
+            msvcrt.getwch()
+
+
 def ask(prompt):
+    drop_pending_keys()
     try:
         return input(prompt)
     except EOFError:
@@ -125,6 +136,7 @@ def pick(prompt, valid):
 
 def press_any_key(prompt):
     if console_keys():
+        drop_pending_keys()
         print(prompt, end="", flush=True)
         getkey()
         print()
@@ -214,6 +226,9 @@ def download_stock(fetch=http_get, log=print):
     log("Downloading original firmware from RØDE's update server...")
     try:
         img = fetch(FIRMWARE_URL)
+    except http.client.HTTPException as e:       # e.g. IncompleteRead: connection dropped mid-download
+        raise WizardError("download failed (%s: %s).\nCheck your internet connection and try again."
+                          % (type(e).__name__, e))
     except (urllib.error.URLError, OSError) as e:
         if isinstance(getattr(e, "reason", e), ssl.SSLCertVerificationError):
             raise WizardError("download failed: the server's certificate could not be verified (%s).\n"
@@ -375,6 +390,9 @@ def run(api, verbose=False, prefer_download=False):
     except KeyboardInterrupt:
         print("\nUPDATE INTERRUPTED.\n\n%s" % RECOVERY)
         return 1
+    except Exception as e:                       # anything unexpected while the mic may be mid-update
+        print("\nUPDATE FAILED (unexpected error): %s: %s\n\n%s" % (type(e).__name__, e, RECOVERY))
+        return 1
     print("\nDone. The mic restarted with: %s" % title)
     return 0
 
@@ -432,6 +450,7 @@ def parse_args(argv):
 def pause():
     if FROZEN:                   # double-clicked: keep the window open
         try:
+            drop_pending_keys()
             input("\nPress Enter to close.")
         except (EOFError, KeyboardInterrupt):
             pass
@@ -439,29 +458,27 @@ def pause():
 
 def main(argv=None):
     a = parse_args(sys.argv[1:] if argv is None else argv)
-    if a.self_test:
-        try:
-            rc = self_test(verbose=a.verbose)
-        except KeyboardInterrupt:
-            rc = 1
-        pause()
-        return rc
-    if sys.platform != "win32":
-        print("This program runs on Windows only.")
-        return 1
     try:
-        rc = run(pf.WinHid(), verbose=a.verbose, prefer_download=a.download)
+        if a.self_test:
+            return self_test(verbose=a.verbose)
+        if sys.platform != "win32":
+            print("This program runs on Windows only.")
+            return 1
+        return run(pf.WinHid(), verbose=a.verbose, prefer_download=a.download)
     except Abort:
         print("\nCancelled. Nothing was changed.")
-        rc = 1
+        return 1
     except KeyboardInterrupt:
         print("\nInterrupted.")
-        rc = 1
+        return 1
     except (WizardError, pf.FlashError, build.BuildError) as e:
         print("\nERROR: %s" % e)
-        rc = 1
-    pause()
-    return rc
+        return 1
+    except Exception as e:                       # show it instead of closing the window on a traceback
+        print("\nUNEXPECTED ERROR: %s: %s\nPlease report this at %s/issues" % (type(e).__name__, e, REPO_URL))
+        return 1
+    finally:
+        pause()
 
 
 if __name__ == "__main__":

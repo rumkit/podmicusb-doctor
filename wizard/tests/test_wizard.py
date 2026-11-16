@@ -190,6 +190,117 @@ class MenuTest(unittest.TestCase):
             wz.choose_variant(wz.VARIANTS)
 
 
+class RunTest(unittest.TestCase):
+    """The whole wizard against the simulated mic. Keyboard input is always the piped fallback (console_keys
+    mocked False), so nothing can block on the real console."""
+    IMG = tf.make_image(seed=3)
+
+    def setUp(self):
+        for p in (mock.patch.object(wz, "console_keys", return_value=False),
+                  mock.patch.object(pf, "central_running", return_value=False),
+                  mock.patch.object(pf, "SETTLE_S", 0),
+                  mock.patch.object(wz, "get_stock", return_value=self.IMG),
+                  mock.patch.object(wz, "make_image", side_effect=self.fake_make_image)):
+            p.start()
+            self.addCleanup(p.stop)
+        self.built = []
+
+    def fake_make_image(self, stock, key):
+        self.built.append(key)
+        return self.IMG
+
+    def run_wizard(self, mic, *answers):
+        it = iter(answers)
+
+        def fake_input(prompt=""):
+            try:
+                return next(it)
+            except StopIteration:
+                raise EOFError
+        out = io.StringIO()
+        with mock.patch("builtins.input", fake_input), contextlib.redirect_stdout(out):
+            try:
+                rc = wz.run(mic)
+            except (wz.WizardError, wz.Abort) as e:
+                rc = e
+        return rc, out.getvalue()
+
+    def assert_untouched(self, mic):
+        self.assertEqual(mic.app_sent, [])
+        self.assertEqual(mic.boot.sent, [])
+        self.assertEqual(mic.mode, "app")
+
+    def test_newer_firmware_refused(self):
+        mic = FakeMic(bcd=0x0120)
+        rc, _ = self.run_wizard(mic, "1", "yes")
+        self.assertIsInstance(rc, wz.WizardError)
+        self.assertIn("newer", str(rc))
+        self.assert_untouched(mic)
+        wz.get_stock.assert_not_called()
+
+    def test_older_firmware_refused(self):
+        mic = FakeMic(bcd=0x0118)
+        rc, _ = self.run_wizard(mic, "1", "yes")
+        self.assertIn("older", str(rc))
+        self.assert_untouched(mic)
+
+    def test_anything_but_yes_flashes_nothing(self):
+        mic = FakeMic()
+        rc, out = self.run_wizard(mic, "1", "y")
+        self.assertEqual(rc, 0)
+        self.assertIn("Cancelled", out)
+        self.assert_untouched(mic)
+
+    def test_yes_flashes_chosen_variant(self):
+        mic = FakeMic()
+        rc, out = self.run_wizard(mic, "2", "YES")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.built, ["i2cfix-volume-holdmute"])
+        self.assertEqual(b"".join(mic.boot.flash[i] for i in sorted(mic.boot.flash)), self.IMG)
+        self.assertEqual(mic.mode, "app")
+        self.assertIn(hashlib.sha256(self.IMG).hexdigest(), out)   # shown before confirming
+
+    def test_bootloader_mode_offers_only_stock(self):
+        mic = FakeMic(mode="boot")
+        rc, out = self.run_wizard(mic, "2", "1", "yes")    # "2" is not offered, ignored
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.built, [None])
+
+    def test_ctrl_c_while_writing_leaves_bootloader_and_shows_recovery(self):
+        mic = FakeMic()
+        with mock.patch.object(pf, "write_pages", side_effect=KeyboardInterrupt):
+            rc, out = self.run_wizard(mic, "1", "yes")
+        self.assertEqual(rc, 1)
+        self.assertIn("UPDATE INTERRUPTED", out)
+        self.assertIn("Unplug the mic", out)
+        self.assertEqual(mic.mode, "boot")
+        self.assertFalse(any(r[:2] == b"\x02R" for r in mic.boot.sent))
+
+    def test_unexpected_error_while_flashing_shows_recovery(self):
+        mic = FakeMic()
+        with mock.patch.object(pf, "write_pages", side_effect=OSError("device gone")):
+            rc, out = self.run_wizard(mic, "1", "yes")
+        self.assertEqual(rc, 1)
+        self.assertIn("UPDATE FAILED (unexpected error): OSError: device gone", out)
+        self.assertIn("Unplug the mic", out)
+
+
+class MainTest(unittest.TestCase):
+    def test_unexpected_error_is_shown_not_raised(self):
+        out = io.StringIO()
+        with mock.patch.object(wz, "self_test", side_effect=RuntimeError("boom")), contextlib.redirect_stdout(out):
+            self.assertEqual(wz.main(["--self-test"]), 1)
+        self.assertIn("UNEXPECTED ERROR: RuntimeError: boom", out.getvalue())
+
+    def test_truncated_download_becomes_wizard_error(self):
+        import http.client
+
+        def f(url):
+            raise http.client.IncompleteRead(b"abc", 100)
+        with self.assertRaisesRegex(wz.WizardError, "IncompleteRead"):
+            wz.download_stock(fetch=f, log=lambda *_: None)
+
+
 class FindMicTest(unittest.TestCase):
     def test_none(self):
         api = mock.Mock(find=lambda pid: [])

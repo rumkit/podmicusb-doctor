@@ -1,5 +1,6 @@
-# Tests, builds podmicusb-doctor.exe + the tools zip, attests their build provenance.
-# On a v* tag it also creates a DRAFT release with those files; publishing it stays a manual step.
+# Tests and builds podmicusb-doctor.exe + the tools zip on every push/PR, with a read-only token.
+# Only on a v* tag, a separate job attests their build provenance and creates a DRAFT release;
+# publishing it stays a manual step.
 name: build
 
 on:
@@ -15,12 +16,10 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    permissions:
-      contents: write        # draft release on tags
-      id-token: write        # provenance attestation (Sigstore)
-      attestations: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
@@ -49,8 +48,10 @@ jobs:
 
       - name: Tools zip
         shell: bash
+        env:
+          VERSION: ${{ steps.name.outputs.version }}
         run: |
-          python - "dist/podmicusb-doctor-${{ steps.name.outputs.version }}.zip" <<'EOF'
+          python - "dist/podmicusb-doctor-$VERSION.zip" <<'EOF'
           import glob, sys, zipfile
           files = ["README.md", "LICENSE", "firmware/README.md"] + sorted(glob.glob("firmware/tools/*.py")) \
                   + sorted(glob.glob("firmware/patches/*.json"))
@@ -64,21 +65,34 @@ jobs:
         shell: bash
         run: cd dist && sha256sum podmicusb-doctor.exe *.zip > SHA256SUMS && cat SHA256SUMS
 
-      - uses: actions/attest-build-provenance@v2
-        if: github.event_name != 'pull_request'
-        with:
-          subject-path: |
-            dist/podmicusb-doctor.exe
-            dist/*.zip
-
       - uses: actions/upload-artifact@v4
         with:
           name: podmicusb-doctor-${{ steps.name.outputs.version }}
           path: dist/*
 
+  release:
+    # tags only: the one job with write access and an OIDC token
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # draft release
+      id-token: write        # provenance attestation (Sigstore)
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: podmicusb-doctor-${{ github.ref_name }}
+          path: dist
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/podmicusb-doctor.exe
+            dist/*.zip
+
       - name: Draft release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --draft --verify-tag --title "$GITHUB_REF_NAME" --notes "Draft - edit the notes before publishing."

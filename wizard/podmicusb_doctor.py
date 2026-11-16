@@ -41,7 +41,17 @@ import podmic_flash as pf       # noqa: E402
 if FROZEN:
     build.PATCHES = os.path.join(sys._MEIPASS, "patches")   # bundled with --add-data
 
-VERSION = "1.1.0"
+try:
+    from _version import VERSION     # written by the CI build from the git tag (v1.1.0 -> "1.1.0"); not committed
+except ImportError:
+    VERSION = "dev"
+
+
+def program_name(version):
+    return "podmicusb-doctor " + ("v" + version if version[:1].isdigit() else version)
+
+
+PROGRAM = program_name(VERSION)
 REPO_URL = "https://github.com/rumkit/podmicusb-doctor"
 FIRMWARE_URL = "https://update.rode.com/podmicusb/firmware.bin"
 MANIFEST_URL = "https://update.rode.com/rode-devices-manifest.json"
@@ -350,7 +360,7 @@ def print_details():
 
 
 def run(api, verbose=False, prefer_download=False):
-    print("podmicusb-doctor %s - firmware fix for the RØDE PodMic USB\n%s\n" % (VERSION, REPO_URL))
+    print("%s - firmware fix for the RØDE PodMic USB\n%s\n" % (PROGRAM, REPO_URL))
     print("Not affiliated with or endorsed by RØDE. Flashing modified firmware is at your own risk.\n")
     if verbose:
         print_details()
@@ -400,24 +410,30 @@ def run(api, verbose=False, prefer_download=False):
 def self_test(fetch=http_get, find_dll=extract_stock.find_dll, verbose=False):
     """No mic needed, nothing is written: download + verify the stock image (and the local RØDE Central copy if
     installed), build every variant and check it against its reference sha256."""
-    print("podmicusb-doctor %s self-test (no mic needed, nothing is changed)\n" % VERSION)
+    print("%s self-test (no mic needed, nothing is changed)\n" % PROGRAM)
     if verbose:
         print_details()
     ok = True
-    sources = [("download", lambda: download_stock(fetch))]
-    if find_dll(None):
-        sources.append(("RØDE Central", lambda: local_stock(find_dll)))
     stock = None
-    for name, get in sources:
-        try:
-            img = get()
-            good = img is not None and hashlib.sha256(img).hexdigest() == STOCK_SHA256
-        except (WizardError, OSError) as e:
-            print("  %s: %s" % (name, e))
-            good = False
-        print("stock 1.1.9 from %-13s %s" % (name + ":", ("OK  sha256 " + STOCK_SHA256) if good else "FAILED"))
-        ok &= good
-        stock = img if good else stock
+    try:
+        stock = download_stock(fetch)
+        print("stock 1.1.9 from download:     OK  sha256 " + STOCK_SHA256)
+    except WizardError as e:
+        print("  download: %s" % e)
+        print("stock 1.1.9 from download:     FAILED")
+        ok = False
+    # The local copy is optional: an older or newer RØDE Central may bundle another firmware version, in which
+    # case the installer simply downloads. Report it, but it isn't a failure.
+    if find_dll(None):
+        local = local_stock(find_dll)
+        if local is not None and hashlib.sha256(local).hexdigest() == STOCK_SHA256:
+            print("stock 1.1.9 from RØDE Central: OK  sha256 " + STOCK_SHA256)
+            stock = stock or local
+        else:
+            print("stock 1.1.9 from RØDE Central: not found in this RØDE Central version (the installer downloads "
+                  "instead)")
+    else:
+        print("stock 1.1.9 from RØDE Central: not installed (the installer downloads instead)")
     if stock is None:
         print("\nSELF-TEST FAILED: no stock image")
         return 1

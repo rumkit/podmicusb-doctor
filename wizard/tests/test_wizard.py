@@ -285,6 +285,44 @@ class RunTest(unittest.TestCase):
         self.assertIn("Unplug the mic", out)
 
 
+class SelfTestTest(unittest.TestCase):
+    IMG = tf.make_image(seed=7)
+
+    def setUp(self):
+        for p in (mock.patch.object(wz, "STOCK_SHA256", hashlib.sha256(self.IMG).hexdigest()),
+                  mock.patch.object(wz, "make_image", return_value=b"built")):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def self_test(self, fetch, local):
+        out = io.StringIO()
+        with mock.patch.object(wz, "local_stock", return_value=local), contextlib.redirect_stdout(out):
+            rc = wz.self_test(fetch=fetch, find_dll=lambda p: "rode_bridge.dll", verbose=False)
+        return rc, out.getvalue()
+
+    def test_rode_central_without_119_is_not_a_failure(self):
+        rc, out = self.self_test(lambda url: self.IMG, None)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("not found in this RØDE Central version", out)
+
+    def test_download_failure_fails_even_with_local_copy(self):
+        def offline(url):
+            raise urllib.error.URLError("offline")
+        rc, out = self.self_test(offline, self.IMG)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("from RØDE Central: OK", out)
+
+
+class VersionTest(unittest.TestCase):
+    def test_banner(self):
+        self.assertEqual(wz.program_name("1.1.0"), "podmicusb-doctor v1.1.0")
+        self.assertEqual(wz.program_name("dev-abc1234"), "podmicusb-doctor dev-abc1234")
+
+    def test_unbuilt_source_is_dev(self):
+        if not os.path.exists(os.path.join(HERE, "..", "_version.py")):
+            self.assertEqual(wz.VERSION, "dev")
+
+
 class MainTest(unittest.TestCase):
     def test_unexpected_error_is_shown_not_raised(self):
         out = io.StringIO()

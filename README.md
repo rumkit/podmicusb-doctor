@@ -38,8 +38,8 @@ The original issue was reported to RØDE support; the ticket was closed without 
 ## Getting the fix
 
 No firmware files are distributed here. The tools take the stock 1.1.9 firmware from your own RØDE Central
-install or from RØDE's own update server, patch it on your machine, and check that the result is byte-identical
-to the reference build. Everything runs on Windows. Read the [safety notes and recovery steps](firmware/README.md#recovery)
+install (the installer can also download it from RØDE's own update server), patch it on your machine, and check
+that the result is byte-identical to the reference build. Everything runs on Windows. Read the [safety notes and recovery steps](firmware/README.md#recovery)
 first.
 
 ### Option A: the installer (no Python needed)
@@ -48,6 +48,10 @@ first.
 2. Close RØDE Central, plug in the mic and double-click the exe. Windows may warn "Windows protected your PC",
    because the exe isn't code-signed: click **More info → Run anyway**.
 3. Pick what to install and confirm. The update takes about 10 seconds. Don't unplug the mic while it runs.
+
+The installer works only with mics on firmware 1.1.9, the version the fix is made for; with any other version it
+stops without changing anything. If the mic is stuck in update mode (after an interrupted update), it offers only
+the original firmware, to recover it.
 
 | Menu entry | What it does |
 |---|---|

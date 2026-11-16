@@ -36,6 +36,9 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="$GITHUB_REF_NAME"; else v="dev-${GITHUB_SHA::7}"; fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
+          # program version shown by the exe: the tag without its "v" (v1.1.0 -> 1.1.0), dev-<sha> otherwise
+          printf 'VERSION = "%s"\n' "${v#v}" > wizard/_version.py
+          cat wizard/_version.py
 
       - name: Build podmicusb-doctor.exe
         run: |

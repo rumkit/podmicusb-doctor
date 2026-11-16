@@ -40,8 +40,10 @@ jobs:
 
       - name: Build podmicusb-doctor.exe
         run: |
-          python -m pip install --disable-pip-version-check pyinstaller==6.11.1
+          # certifi: CA list bundled in the exe; a fresh Windows may lack the root RØDE's server chains to
+          python -m pip install --disable-pip-version-check pyinstaller==6.22.3 certifi==2026.10.23
           pyinstaller --onefile --console --clean --noconfirm --name podmicusb-doctor `
+            --icon assets/podmicusb-doctor.ico `
             --paths firmware/tools --add-data "firmware/patches/*.json;patches" `
             wizard/podmicusb_doctor.py
 

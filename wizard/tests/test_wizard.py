@@ -122,6 +122,74 @@ class FlashFlowTest(unittest.TestCase):
         self.assertEqual(mic.mode, "app")
 
 
+class ProgressTest(unittest.TestCase):
+    class Out(io.StringIO):
+        def __init__(self, tty):
+            super().__init__()
+            self.tty = tty
+
+        def isatty(self):
+            return self.tty
+
+    def test_console_redraws_one_line(self):
+        out = self.Out(True)
+        step = wz.page_progress(4, out)
+        for i in range(4):
+            step("page %d" % i)
+        text = out.getvalue()
+        self.assertEqual(text.count("\r"), 4)
+        self.assertEqual(text.count("\n"), 1)
+        self.assertTrue(text.endswith("[" + "#" * 30 + "] page  4/4\n"))
+
+    def test_redirected_output_gets_one_line_per_page(self):
+        out = self.Out(False)
+        step = wz.page_progress(3, out)
+        for i in range(3):
+            step("page %d ok" % i)
+        self.assertEqual(out.getvalue(), "page 0 ok\npage 1 ok\npage 2 ok\n")
+
+
+class MenuTest(unittest.TestCase):
+    """Piped/redirected input (as under unittest): one answer per line, first character counts."""
+
+    def choose(self, *lines):
+        answers = iter(lines)
+
+        def fake_input(prompt=""):
+            try:
+                return next(answers)
+            except StopIteration:
+                raise EOFError
+        with mock.patch.object(wz, "console_keys", return_value=False), \
+                mock.patch("builtins.input", fake_input), quiet():
+            return wz.choose_variant(wz.VARIANTS)
+
+    def test_number_picks_variant(self):
+        self.assertEqual(self.choose("2")[0], "i2cfix-volume-holdmute")
+
+    def test_invalid_answers_are_ignored(self):
+        self.assertEqual(self.choose("9", "x", "", "1")[0], "i2cfix")
+
+    def test_q_aborts(self):
+        with self.assertRaises(wz.Abort):
+            self.choose("q")
+
+    def test_end_of_input_aborts(self):
+        with self.assertRaises(wz.Abort):
+            self.choose()
+
+    def test_console_single_key(self):
+        keys = iter(["x", "", "3"])
+        with mock.patch.object(wz, "console_keys", return_value=True), \
+                mock.patch.object(wz, "getkey", side_effect=lambda: next(keys)), quiet():
+            self.assertEqual(wz.choose_variant(wz.VARIANTS)[0], "diag")
+
+    def test_console_esc_aborts(self):
+        with mock.patch.object(wz, "console_keys", return_value=True), \
+                mock.patch.object(wz, "getkey", return_value="esc"), quiet(), self.assertRaises(wz.Abort):
+            wz.choose_variant(wz.VARIANTS)
+
+
 class FindMicTest(unittest.TestCase):
     def test_none(self):
         api = mock.Mock(find=lambda pid: [])
@@ -175,11 +243,54 @@ class StockSourceTest(unittest.TestCase):
         with self.assertRaisesRegex(wz.WizardError, "download failed"):
             wz.get_stock(fetch=f, find_dll=lambda p: None, log=lambda *_: None)
 
+    def test_certificate_error_explained(self):
+        import ssl
+        f = self.fetch({wz.FIRMWARE_URL: urllib.error.URLError(ssl.SSLCertVerificationError("unable to get issuer"))})
+        with self.assertRaisesRegex(wz.WizardError, "certificate could not be verified"):
+            wz.get_stock(fetch=f, find_dll=lambda p: None, log=lambda *_: None)
+
+    def test_tls_context_verifies(self):
+        import ssl
+        ctx = wz.tls_context()
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(ctx.check_hostname)
+
+    def test_prefer_download_uses_download_even_with_local_copy(self):
+        other = tf.make_image(seed=8)     # local copy must not be used
+        with mock.patch.object(wz, "local_stock", return_value=other) as loc:
+            img = wz.get_stock(fetch=self.fetch({wz.FIRMWARE_URL: self.IMG}), log=lambda *_: None,
+                               prefer_download=True)
+        self.assertEqual(img, self.IMG)
+        loc.assert_not_called()
+
+    def test_prefer_download_falls_back_to_local(self):
+        f = self.fetch({wz.FIRMWARE_URL: urllib.error.URLError("offline")})
+        with mock.patch.object(wz, "local_stock", return_value=self.IMG):
+            self.assertEqual(wz.get_stock(fetch=f, log=lambda *_: None, prefer_download=True), self.IMG)
+
+    def test_prefer_download_both_fail(self):
+        f = self.fetch({wz.FIRMWARE_URL: urllib.error.URLError("offline")})
+        with mock.patch.object(wz, "local_stock", return_value=None), \
+                self.assertRaisesRegex(wz.WizardError, "download failed"):
+            wz.get_stock(fetch=f, log=lambda *_: None, prefer_download=True)
+
     def test_local_install_preferred_no_network(self):
         def no_net(url):
             raise AssertionError("network used")
         with mock.patch.object(wz, "local_stock", return_value=self.IMG):
             self.assertEqual(wz.get_stock(fetch=no_net, log=lambda *_: None), self.IMG)
+
+
+class ArgsTest(unittest.TestCase):
+    def test_flags(self):
+        a = wz.parse_args([])
+        self.assertFalse(a.self_test or a.verbose or a.download)
+        a = wz.parse_args(["--self-test", "--verbose", "--download"])
+        self.assertTrue(a.self_test and a.verbose and a.download)
+
+    def test_unknown_flag_rejected(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            wz.parse_args(["--details"])
 
 
 @unittest.skipUnless(os.environ.get("PODMIC_STOCK"), "set PODMIC_STOCK to a stock 1.1.9 image")

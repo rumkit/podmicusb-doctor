@@ -10,7 +10,13 @@ One program instead of extract_stock.py + build.py + podmic_flash.py:
   4. flashes it after you confirm.
 Nothing is saved to disk. No RØDE firmware is shipped with this program.
 
-usage:  py podmicusb_doctor.py        (or double-click podmicusb-doctor.exe)
+usage:  py podmicusb_doctor.py [options]     (or double-click podmicusb-doctor.exe)
+  --self-test  no mic needed, changes nothing: downloads and verifies the stock image (and checks the local
+               RØDE Central copy if installed), builds every variant and checks it against its reference sha256
+  --verbose    also show where the program loaded its own code from, which certificate list it uses, and the
+               stock image's sha256
+  --download   get the stock image from RØDE's server even if RØDE Central is installed (the local copy is
+               used only if the download fails)
 
 All safety rules are the flasher's (firmware/tools/podmic_flash.py): CRC/vector checks, settings pages never
 written, only a lower image version is refused, every step must be acknowledged.
@@ -18,6 +24,7 @@ written, only a lower image version is refused, every step must be acknowledged.
 import hashlib
 import json
 import os
+import ssl
 import sys
 import urllib.error
 import urllib.request
@@ -44,7 +51,7 @@ STOCK_SHA256 = build.STOCK_SHA256
 
 # (key, menu title, one-line explanation); key None = the unmodified stock image
 VARIANTS = (
-    ("i2cfix", "Fix only (recommended)",
+    ("i2cfix", "Fix only",
      "fixes the random disconnects; changes nothing else"),
     ("i2cfix-volume-holdmute", "Fix + extras",
      "the fix, plus louder headphones at power-up and hold the wheel to mute (with a short jingle)"),
@@ -77,12 +84,83 @@ def ask(prompt):
         raise Abort()
 
 
+def console_keys():
+    """True when single keypresses can be read (a real Windows console, not piped/redirected input)."""
+    if not sys.stdin or not sys.stdin.isatty():
+        return False
+    try:
+        import msvcrt  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def getkey():
+    """One keypress, no Enter. Ctrl+C raises KeyboardInterrupt, Esc returns 'esc', arrow/function keys ''."""
+    import msvcrt
+    ch = msvcrt.getwch()
+    if ch == "\x03":
+        raise KeyboardInterrupt
+    if ch in ("\x00", "\xe0"):        # arrow/function keys arrive as two codes
+        msvcrt.getwch()
+        return ""
+    return "esc" if ch == "\x1b" else ch.lower()
+
+
+def pick(prompt, valid):
+    """Wait for one of the keys in `valid` and return it. In a console a single keypress is enough (other keys
+    are ignored); with piped input the first character of each line is used."""
+    if console_keys():
+        print(prompt, end="", flush=True)
+        while True:
+            k = getkey()
+            if k in valid:
+                print(k.upper() if k != "esc" else "")
+                return k
+    while True:
+        k = ask(prompt).strip().lower()[:1]
+        if k in valid:
+            return k
+
+
+def press_any_key(prompt):
+    if console_keys():
+        print(prompt, end="", flush=True)
+        getkey()
+        print()
+    else:
+        ask(prompt)
+
+
 # --------------------------------------------------------------------------
 # Stock image
 # --------------------------------------------------------------------------
+def tls_context():
+    """Windows' trusted roots plus certifi's CA list if available (bundled in the exe).
+
+    Python only sees the roots already in the Windows store. A fresh Windows has few and downloads the rest only
+    when Windows' own HTTPS stack asks; Python's doesn't. RØDE's server chains to a root that may be missing
+    (seen in Windows Sandbox). certifi fills the gap; certificate checking stays on either way."""
+    ctx = ssl.create_default_context()
+    try:
+        import certifi
+        ctx.load_verify_locations(certifi.where())
+    except ImportError:
+        pass
+    return ctx
+
+
+def tls_source():
+    try:
+        import certifi
+        return "Windows store + certifi %s" % certifi.__version__
+    except ImportError:
+        return "Windows store only (certifi not installed)"
+
+
 def http_get(url, limit=MAX_DOWNLOAD):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.urlopen(req, timeout=30, context=tls_context()) as r:
         data = r.read(limit + 1)
     if len(data) > limit:
         raise WizardError("download from %s is unexpectedly large" % url)
@@ -110,15 +188,37 @@ def local_stock(find_dll=extract_stock.find_dll):
         return None
 
 
-def get_stock(fetch=http_get, find_dll=extract_stock.find_dll, log=print):
-    img = local_stock(find_dll)
-    if img is not None and hashlib.sha256(img).hexdigest() == STOCK_SHA256:
-        log("Found original firmware 1.1.9 in your RØDE Central install.")
+def get_stock(fetch=http_get, find_dll=extract_stock.find_dll, log=print, prefer_download=False):
+    """Stock 1.1.9 image, sha256-checked. Default: local RØDE Central install first, then download.
+    prefer_download: download first, fall back to the local install only if the download fails."""
+    def local():
+        img = local_stock(find_dll)
+        if img is not None and hashlib.sha256(img).hexdigest() == STOCK_SHA256:
+            log("Found original firmware 1.1.9 in your RØDE Central install.")
+            return img
+        return None
+
+    if not prefer_download:
+        return local() or download_stock(fetch, log)
+    try:
+        return download_stock(fetch, log)
+    except WizardError as e:
+        img = local()
+        if img is None:
+            raise
+        log("(download failed: %s)" % str(e).split("\n")[0])
         return img
+
+
+def download_stock(fetch=http_get, log=print):
     log("Downloading original firmware from RØDE's update server...")
     try:
         img = fetch(FIRMWARE_URL)
     except (urllib.error.URLError, OSError) as e:
+        if isinstance(getattr(e, "reason", e), ssl.SSLCertVerificationError):
+            raise WizardError("download failed: the server's certificate could not be verified (%s).\n"
+                              "This can happen behind a company proxy or with a wrong system clock. Install RØDE "
+                              "Central (this program can take the firmware from there) and try again." % e)
         raise WizardError("download failed (%s).\nCheck your internet connection, or install RØDE Central "
                           "(this program can take the firmware from there) and try again." % e)
     if hashlib.sha256(img).hexdigest() != STOCK_SHA256:
@@ -155,7 +255,28 @@ def find_mic(api):
     raise WizardError("no PodMic USB found - plug it in (directly, not through a hub if possible)")
 
 
-def flash(api, image, log=print):
+def page_progress(total, out=None):
+    """Per-page callback for pf.write_pages: a progress bar redrawn with \\r in a console, one line per page
+    when the output goes to a file or pipe."""
+    out = out or sys.stdout
+    tty = out.isatty()
+    count = [0]
+
+    def step(msg):
+        count[0] += 1
+        if not tty:
+            out.write(msg + "\n")
+            return
+        n = count[0]
+        bar = "#" * (n * 30 // total)
+        out.write("\r  [%-30s] page %2d/%d" % (bar, n, total))
+        if n == total:
+            out.write("\n")
+        out.flush()
+    return step
+
+
+def flash(api, image, log=print, progress=page_progress):
     """Flash image to the one connected mic. Same steps and checks as podmic_flash.py flash, minus the prompt."""
     info, _ = pf.check_image(image)
     pf.compare_versions(api, info["version_raw"])
@@ -164,7 +285,7 @@ def flash(api, image, log=print):
         pf.boot_info(dev)
         log("Writing firmware - DO NOT UNPLUG THE MIC")
         pages = pf.pages_of(image)
-        pf.write_pages(dev, pages, log=lambda *_: None)
+        pf.write_pages(dev, pages, log=progress(len(pages)))
         log("All %d pages written." % len(pages))
     except pf.FlashError:
         dev.close()
@@ -183,17 +304,17 @@ def choose_variant(options):
     print("\nWhat do you want to install?")
     for i, (_, title, text) in enumerate(options, 1):
         print("  %d. %s\n     %s" % (i, title, text))
-    while True:
-        a = ask("Enter a number (or Q to quit): ").strip().lower()
-        if a == "q":
-            raise Abort()
-        if a.isdigit() and 1 <= int(a) <= len(options):
-            return options[int(a) - 1]
+    numbers = [str(i) for i in range(1, len(options) + 1)]
+    k = pick("Press %s (Q to quit): " % ("1" if len(numbers) == 1 else "1-%d" % len(numbers)),
+             numbers + ["q", "esc"])
+    if k in ("q", "esc"):
+        raise Abort()
+    return options[int(k) - 1]
 
 
 def wait_central_closed():
     while pf.central_running():
-        ask("RØDE Central is running. Close it (also check the system tray), then press Enter...")
+        press_any_key("RØDE Central is running. Close it (also check the system tray), then press any key...")
 
 
 def connect_mic(api):
@@ -201,12 +322,23 @@ def connect_mic(api):
         try:
             return find_mic(api)
         except WizardError as e:
-            ask("%s\nPress Enter to look again..." % e)
+            press_any_key("%s\nPress any key to look again..." % e)
 
 
-def run(api):
+def print_details():
+    """--verbose: where the program runs from and loaded its own code from, which certificate list it uses."""
+    print("program:  %s%s" % (sys.executable if FROZEN else os.path.abspath(__file__), " (exe)" if FROZEN else ""))
+    for m in (build, extract_stock, pf):
+        print("module:   %-16s %s" % (m.__name__, getattr(m, "__file__", "?")))
+    print("patches:  %s" % os.path.abspath(build.PATCHES))
+    print("certs:    %s\n" % tls_source())
+
+
+def run(api, verbose=False, prefer_download=False):
     print("podmicusb-doctor %s - firmware fix for the RØDE PodMic USB\n%s\n" % (VERSION, REPO_URL))
     print("Not affiliated with or endorsed by RØDE. Flashing modified firmware is at your own risk.\n")
+    if verbose:
+        print_details()
     wait_central_closed()
     mode, desc = connect_mic(api)
     options = VARIANTS
@@ -223,10 +355,13 @@ def run(api):
         if desc["bcd"] < SUPPORTED_BCD:
             raise WizardError("this mic has an older firmware. Update it to 1.1.9 with RØDE Central first, "
                               "then run this again. Nothing was changed.")
-    stock = get_stock()
+    stock = get_stock(prefer_download=prefer_download)
+    if verbose:
+        print("stock sha256 %s" % hashlib.sha256(stock).hexdigest())
     key, title, _ = choose_variant(options)
     image = make_image(stock, key)
     print("\nReady to install: %s" % title)
+    print("sha256 %s (same as the published reference build)" % hashlib.sha256(image).hexdigest())
     print("The update takes about 10 seconds. Don't unplug the mic or close this window until it's done.")
     if ask("Type YES to start, anything else to cancel: ").strip().lower() != "yes":
         print("Cancelled. Nothing was changed.")
@@ -244,12 +379,78 @@ def run(api):
     return 0
 
 
-def main():
+def self_test(fetch=http_get, find_dll=extract_stock.find_dll, verbose=False):
+    """No mic needed, nothing is written: download + verify the stock image (and the local RØDE Central copy if
+    installed), build every variant and check it against its reference sha256."""
+    print("podmicusb-doctor %s self-test (no mic needed, nothing is changed)\n" % VERSION)
+    if verbose:
+        print_details()
+    ok = True
+    sources = [("download", lambda: download_stock(fetch))]
+    if find_dll(None):
+        sources.append(("RØDE Central", lambda: local_stock(find_dll)))
+    stock = None
+    for name, get in sources:
+        try:
+            img = get()
+            good = img is not None and hashlib.sha256(img).hexdigest() == STOCK_SHA256
+        except (WizardError, OSError) as e:
+            print("  %s: %s" % (name, e))
+            good = False
+        print("stock 1.1.9 from %-13s %s" % (name + ":", ("OK  sha256 " + STOCK_SHA256) if good else "FAILED"))
+        ok &= good
+        stock = img if good else stock
+    if stock is None:
+        print("\nSELF-TEST FAILED: no stock image")
+        return 1
+    print("\nBuilt images (each checked against the published reference sha256):")
+    for key, title, _ in VARIANTS:
+        try:
+            img = make_image(stock, key)
+            print("  %-38s OK  sha256 %s" % (title, hashlib.sha256(img).hexdigest()))
+        except (WizardError, build.BuildError, OSError) as e:
+            print("  %-38s FAILED: %s" % (title, e))
+            ok = False
+    print("\nSELF-TEST %s" % ("PASSED" if ok else "FAILED"))
+    return 0 if ok else 1
+
+
+def parse_args(argv):
+    import argparse
+    ap = argparse.ArgumentParser(prog="podmicusb-doctor", description="Firmware fix for the RØDE PodMic USB. "
+                                 "Run without options for the guided installer.")
+    ap.add_argument("--self-test", action="store_true",
+                    help="no mic needed, changes nothing: get the stock image, build and check every variant")
+    ap.add_argument("--verbose", action="store_true",
+                    help="also show where the program loaded its code from, the certificate list and the stock sha256")
+    ap.add_argument("--download", action="store_true",
+                    help="get the stock image from RØDE's server even if RØDE Central is installed "
+                         "(the local copy is used only if the download fails)")
+    return ap.parse_args(argv)
+
+
+def pause():
+    if FROZEN:                   # double-clicked: keep the window open
+        try:
+            input("\nPress Enter to close.")
+        except (EOFError, KeyboardInterrupt):
+            pass
+
+
+def main(argv=None):
+    a = parse_args(sys.argv[1:] if argv is None else argv)
+    if a.self_test:
+        try:
+            rc = self_test(verbose=a.verbose)
+        except KeyboardInterrupt:
+            rc = 1
+        pause()
+        return rc
     if sys.platform != "win32":
         print("This program runs on Windows only.")
         return 1
     try:
-        rc = run(pf.WinHid())
+        rc = run(pf.WinHid(), verbose=a.verbose, prefer_download=a.download)
     except Abort:
         print("\nCancelled. Nothing was changed.")
         rc = 1
@@ -259,11 +460,7 @@ def main():
     except (WizardError, pf.FlashError, build.BuildError) as e:
         print("\nERROR: %s" % e)
         rc = 1
-    if FROZEN:                   # double-clicked: keep the window open
-        try:
-            input("\nPress Enter to close.")
-        except (EOFError, KeyboardInterrupt):
-            pass
+    pause()
     return rc
 
 

@@ -37,9 +37,9 @@ The original issue was reported to RØDE support; the ticket was closed without 
 
 ## Getting the fix
 
-No firmware files are distributed here. The tools take the stock 1.1.9 firmware from your own RØDE Central
-install (the installer can also download it from RØDE's own update server), patch it on your machine, and check
-that the result is byte-identical to the reference build. Everything runs on Windows. Read the [safety notes and recovery steps](firmware/README.md#recovery)
+No firmware files are distributed here. The tools get the stock 1.1.9 firmware from RØDE
+themselves (the installer downloads it from RØDE's own update server or copies it from RØDE Central, if you have it),
+patch it on your machine, and check that the result is byte-identical to the reference build. Everything runs on Windows. Read the [safety notes and recovery steps](firmware/README.md#recovery)
 first.
 
 ### Option A: the installer (no Python needed)

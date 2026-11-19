@@ -12,6 +12,7 @@ It's a small example of the setup that was used, not a maintained product: take 
 | **Rizin** 0.10.0 (pinned commit) + **rz-ghidra** | disassembly / decompilation of the firmware (`af`, `pdg`); `rz-asm` assembles the patches | yes, for `firmware/dev/assemble.py` and `emu_holdmute.py` |
 | **TShark** | reading the USBPcap captures (disconnect, factory restore) | for redoing the capture analysis |
 | Python 3 | the repo's scripts and tests | yes |
+| [Blutter](https://github.com/worawit/blutter) (pinned commit), in `/opt/blutter` | decompiling the RØDE Central Mobile Flutter app (Android arm64 `libapp.so`) for the protocol spec; Dart VMs for Central Mobile 2.0.94 and 2.2.0 prebuilt | for redoing the Central app analysis |
 | Ghidra (headless), OpenJDK 21 | used by REA's Ghidra bridge (it can't load the Thumb-only raw image; Rizin did the real work) | no |
 | Node.js 26, [REA](https://www.npmjs.com/package/rea-agents), Claude Code | the AI-assisted reverse-engineering setup the investigation was done with | no |
 | Neovim, build tools | convenience / building Rizin | — |

@@ -54,10 +54,27 @@ RUN git clone --recurse-submodules https://github.com/rizinorg/rz-ghidra.git /tm
     rm -rf /tmp/rz-ghidra && \
     rizin -qc 'Ll' -- | grep -qi ghidra
 
-# 4. AI tooling (optional for this repo): REA and Claude Code
+# 4. Blutter (Flutter/Dart AOT decompiler; Android arm64 libapp.so only), in /opt so a mount over /workspace
+#    does not hide it. Pinned to the commit used on 2026-11-19. The Dart VM for RØDE Central Mobile 2.0.94
+#    (Dart 3.7.0, snapshot d91c0e6f…) and 2.2.0 (Dart 3.12.2, snapshot ace65428…, android arm64) are prebuilt;
+#    other Dart versions build on first use.
+#    Usage: python3 /opt/blutter/blutter.py <dir with libapp.so + libflutter.so> <outdir>
+ARG BLUTTER_REF=4a60ac648bf448c5a7596437243bcd0b9376fdf0
+RUN apt-get update && apt-get install -y \
+        libicu-dev \
+        libcapstone-dev \
+        python3-pyelftools \
+        python3-requests \
+    && rm -rf /var/lib/apt/lists/* && \
+    git clone https://github.com/worawit/blutter.git /opt/blutter && \
+    cd /opt/blutter && git checkout "${BLUTTER_REF}" && \
+    python3 dartvm_fetch_build.py 3.7.0 android arm64 d91c0e6f35f0eb2e44124e8f42aa44a7 && \
+    python3 dartvm_fetch_build.py 3.12.2 android arm64 ace654289f5abc240509fc941453ebc5
+
+# 5. AI tooling (optional for this repo): REA and Claude Code
 RUN npm install -g rea-agents @anthropic-ai/claude-code
 
-# 5. Ghidra (from https://github.com/NationalSecurityAgency/ghidra/releases, saved as docker/ghidra.zip).
+# 6. Ghidra (from https://github.com/NationalSecurityAgency/ghidra/releases, saved as docker/ghidra.zip).
 #    Lives in /opt so a bind mount over /workspace does not hide it.
 COPY ghidra.zip /tmp/ghidra.zip
 RUN cd /tmp && unzip -q ghidra.zip && rm ghidra.zip && \

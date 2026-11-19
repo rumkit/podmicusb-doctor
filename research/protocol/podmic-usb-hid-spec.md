@@ -162,10 +162,96 @@ underlying Advanced parameters itself (§9); the firmware only stores the slider
 
 ### 5.5 Raw biquad access (`0x07`, hidden)
 
-The mic signal passes three biquad slots (Q30 coefficients with a common headroom shift, renormalised on every
-write). Slot 0 holds the HPF. Writing a slot takes effect immediately but is **not persisted**, and a later
-param `0x01` write overwrites slot 0. A custom filter (e.g. a 100/150 Hz HPF) can therefore be loaded at runtime
-only. Read a slot first and keep its format; this path is not used by any RØDE app.
+> **Theoretical.** Everything in this section comes from reading the firmware 1.1.9 code (handler `0x080084c4`,
+> setter `0x0800a960`, renormaliser `0x0800a4e0`). No RØDE app uses this parameter and none of it has been tried
+> on a mic yet. The example below is meant as a reproducible starting point for that test.
+
+The mic signal passes through three biquad slots in series. Slot 0 holds the HPF (param `0x01` loads either the
+stock high-pass or a pass-through into it). Writing a slot takes effect immediately but is **not persisted**:
+it is lost on power-off, and a later param `0x01` write overwrites slot 0. A custom filter (e.g. a 100 or 150 Hz
+high-pass) can therefore only be loaded at runtime, after every connect.
+
+**Layout** (request and reply, content offsets; the report is 27 content bytes, so the shift byte is the last one):
+
+| Content | Request (SET / GET) | Reply (Report `0x07`) |
+|---|---|---|
+| 0 | `0x07` | `0x07` (echo) |
+| 1 | op: `0x00` SET, `0x01` GET | status `'A'` (`'N'` if the slot is > 2) |
+| 2 | slot `0..2` | slot |
+| 3–5 | `0x00` (ignored) | not written (treat as undefined) |
+| 6–25 | `b0, b1, b2, a1, a2`: 5 × int32, little-endian (SET only; zero for GET) | the slot's current coefficients |
+| 26 | shift `s` (SET only) | the slot's current shift |
+
+**Coefficient value:** `c = raw · 2^s / 2^31`. With `s = 1` (what the stock filters use) the raw values are Q30,
+so `|c| < 2`.
+
+**Difference equation** (feedback terms are *added*, i.e. `a1`, `a2` are the negated textbook denominator
+coefficients):
+
+```
+y[n] = b0·x[n] + b1·x[n−1] + b2·x[n−2] + a1·y[n−1] + a2·y[n−2]
+```
+
+The sample rate is taken as 48 kHz (the stream rate). This convention and rate reproduce the documented response
+of the stock HPF exactly: −2.9 dB at 54 Hz, −0.5 dB at 75 Hz, −7 dB at 40 Hz.
+
+**Stock contents** (24-byte slot images in flash: 5 coefficients, shift byte, 3 padding bytes):
+
+| Filter | Address | `b0, b1, b2, a1, a2` | `s` |
+|---|---|---|---|
+| HPF on (param `0x01` = 1) | `0x0800E96C` | `3FFFBF51 8000815D 3FFFBF51 7F5EEE9E C0A00FEC` (0.999985, −1.999969, 0.999985, 1.990169, −0.990231) | 1 |
+| HPF off / pass-through | `0x0800E984` | `40000000 0 0 0 0` (1, 0, 0, 0, 0) | 1 |
+
+**Shared shift.** The three slots must share one shift. After any SET, the firmware takes the largest shift among
+the three slots, then halves the raw coefficients of every slot with a smaller shift until all match. The real
+coefficients don't change, but a GET can return different raw values and a different `s` from what was written.
+Compare real values (`raw · 2^s / 2^31`), not raw bytes. A large `s` in one slot costs precision in all three.
+
+**Example: 150 Hz high-pass in slot 0.** 2nd-order Butterworth (RBJ cookbook, `f0 = 150 Hz`, `Q = 1/√2`,
+`fs = 48 kHz`), encoded with `s = 1`:
+
+```
+b0 =  0.98621192  →  0x3F1E189F
+b1 = −1.97242385  →  0x81C3CEC2
+b2 =  0.98621192  →  0x3F1E189F
+a1 =  1.97223373  →  0x7E3913D2      (textbook a1 = −1.97223373, negated)
+a2 = −0.97261397  →  0xC1C0B157      (textbook a2 =  0.97261397, negated)
+```
+
+Expected response: −19.1 dB at 50 Hz, −12.3 dB at 75 Hz, −7.8 dB at 100 Hz, −3.0 dB at 150 Hz, −0.3 dB at 300 Hz.
+
+```
+SET_REPORT wValue=0x0208 wIndex=3 wLength=28
+08 07 00 00 00 00 00 9F 18 1E 3F C2 CE C3 81 9F 18 1E 3F D2 13 39 7E 57 B1 C0 C1 01
+```
+
+Read slot 0 back (expected reply `07 07 41 00 xx xx xx 9F 18 1E 3F … 57 B1 C0 C1 01` if slots 1 and 2 also use
+`s = 1`; see Shared shift):
+
+```
+08 07 01 00 00 00 ... (28 bytes total)
+```
+
+Restore the stock filter with param `0x01` (`08 01 00 01 …` for HPF on, `08 01 00 00 …` for off).
+
+A safe first test on a mic is a GET of slot 0 with the HPF on. The reply should match the stock HPF row above
+byte for byte, which would confirm the layout without changing anything.
+
+Encoder sketch (Python; the RBJ high-pass and the sign flip of `a1`/`a2` are the only filter-specific parts):
+
+```python
+import math, struct
+
+def hpf_slot_request(slot, f0, q=1 / math.sqrt(2), fs=48000, s=1):
+    w = 2 * math.pi * f0 / fs
+    alpha = math.sin(w) / (2 * q)
+    a0 = 1 + alpha
+    b0 = (1 + math.cos(w)) / 2 / a0
+    coeffs = [b0, -2 * b0, b0, 2 * math.cos(w) / a0, -(1 - alpha) / a0]   # a1, a2 already negated
+    raw = [round(c * 2**31 / 2**s) for c in coeffs]
+    content = bytes([0x07, 0x00, slot, 0, 0, 0]) + struct.pack('<5i', *raw) + bytes([s])
+    return bytes([0x08]) + content                                         # 28 bytes incl. report ID
+```
 
 ## 6. Report `0x04` — DSP block parameters
 

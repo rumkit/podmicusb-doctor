@@ -339,7 +339,13 @@ The factory defaults (§11.2) follow these formulas exactly for Punch = 70.
 ## 10. Value encodings (exact)
 
 All multi-byte values are little-endian. RØDE Central computes in 32-bit float and converts with C truncation
-(`int(x)`), not rounding. "Q31" means `int32(x · 2³¹)`, saturated to `0x7FFFFFFF`.
+(`int(x)`), not rounding.
+
+**Q31** is signed 32-bit fixed point with 31 fraction bits: `raw = Q31(x) = int(x · 2³¹)`, `x = raw / 2³¹`, so it
+covers −1 ≤ x < 1. `x = 1.0` does not fit and is saturated to `0x7FFFFFFF`. Central evaluates `x` in 32-bit
+float (`powf`, `float` division) before scaling, and the result can differ from a double-precision calculation by a
+few counts (e.g. −20 dB: `0x0CCCCCD0` vs `0x0CCCCCCC`; a capture of Hysteresis 20 % confirms the float result).
+The mic accepts either; match float32 only if you need Central's exact bytes. Worked examples in §10.3.
 
 ### 10.1 Linear bytes
 
@@ -379,6 +385,20 @@ Attack:            w = 5 / (48000 · t_s);  c = cos(w);  Q31( c − 1 + sqrt(c²
 Hold, Release:     Q31( 1 / (48000 · t_s) )
 Hysteresis:        Q31( 10^((−1 − 7x) / 20) ),  x = percent / 100   (1…8 dB window)
 ```
+
+Worked examples (float32 as Central computes them; decode with `dB = 20 · log10(raw / 2³¹)`):
+
+| Field | Value | Linear `x` | `raw` | Wire bytes |
+|---|---|---|---|---|
+| Threshold / Range | 0 dB | 10^0 = 1.0 | saturated `0x7FFFFFFF` | `FF FF FF 7F` |
+| Threshold / Range | −20 dB | 10^−1 = 0.1 | `0x0CCCCCD0` | `D0 CC CC 0C` |
+| Threshold / Range | −40 dB | 10^−2 = 0.01 | `0x0147AE14` | `14 AE 47 01` |
+| Threshold / Range | −60 dB | 10^−3 = 0.001 | `0x0020C49B` | `9B C4 20 00` |
+| Hysteresis | 20 % (x = 0.2) | 10^(−2.4/20) ≈ 0.7586 | `0x61191200` (captured) | `00 12 19 61` |
+| Hold | 0.05 s | 1/2400 | `0x000DA740` (captured) | `40 A7 0D 00` |
+| Release | 0.2 s | 1/9600 | `0x000369D0` (captured) | `D0 69 03 00` |
+
+The 0 dB case is the only one that saturates: `1.0 · 2³¹` is one more than the largest int32.
 
 The attack formula is a one-pole coefficient for a time constant of t/5; for small w it is ≈ `1/(9600·t_s)`,
 which is where the earlier "÷9600" approximation came from. RØDE Central passes hysteresis as 0…1 and shows it

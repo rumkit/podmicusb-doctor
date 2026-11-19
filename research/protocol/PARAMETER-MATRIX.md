@@ -9,6 +9,13 @@ the same version), which replace the earlier curve fits.
 Flutter model (ranges, defaults); **CAP** = USB capture. **Confidence:** High = two independent sources agree (or the
 code is unambiguous and a capture matches); Medium = one source; Low = inferred.
 
+**Notation:** `int()` truncates toward zero. **`Q31(x)`** = `int(x · 2³¹)` as a signed 32-bit value (−1 ≤ x < 1),
+saturated to `0x7FFFFFFF` at x = 1.0; decode `x = raw / 2³¹`. RØDE Central computes `x` in 32-bit float, which can
+differ by a few counts from double precision (spec §10). Example, Noise Gate Threshold −40 dB:
+`10^(−40/20) = 0.01` → `0.01 · 2³¹ = 21474836.48` → `21474836` = `0x0147AE14` → wire `14 AE 47 01`. More examples
+(0, −20, −60 dB, hysteresis, hold, release): spec §10.3. `T_*[i]` = entry `i` of a table in
+[`podmic-dsp-tables.md`](podmic-dsp-tables.md).
+
 ## DSP blocks (Report `0x04` — `[target, 0x02, subfield, payload]`)
 
 | Block | Parameter | Sub | Payload | Encoding | Range (default) | Sources | Confidence |

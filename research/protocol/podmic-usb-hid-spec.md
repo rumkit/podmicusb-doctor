@@ -163,8 +163,9 @@ underlying Advanced parameters itself (§9); the firmware only stores the slider
 ### 5.5 Raw biquad access (`0x07`, hidden)
 
 > **Theoretical.** Everything in this section comes from reading the firmware 1.1.9 code (handler `0x080084c4`,
-> setter `0x0800a960`, renormaliser `0x0800a4e0`). No RØDE app uses this parameter and none of it has been tried
-> on a mic yet. The example below is meant as a reproducible starting point for that test.
+> setter `0x0800a960`, renormaliser `0x0800a4e0`). RØDE Central 2.2.0 (Windows and Android) never sends this
+> parameter; other RØDE apps were not checked. We have not tried it on a mic. The example below is meant as a
+> reproducible starting point for that test.
 
 The mic signal passes through three biquad slots in series. Slot 0 holds the HPF (param `0x01` loads either the
 stock high-pass or a pass-through into it). Writing a slot takes effect immediately but is **not persisted**:

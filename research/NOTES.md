@@ -1,5 +1,5 @@
-> **About this file.** This is the raw, chronological lab notebook of the investigation (sessions 2a–3ae,
-> 2026-11-04 → 2026-11-14), kept as written, including hypotheses that later turned out wrong (corrections are noted
+> **About this file.** This is the raw, chronological lab notebook of the investigation (sessions 2a–4c,
+> 2026-11-04 → 2026-11-19), kept as written, including hypotheses that later turned out wrong (corrections are noted
 > in later sessions). For the summary read [`README.md`](README.md). File paths mentioned here refer to the original
 > working folder, not to this repository: `flasher/*` → `firmware/tools/`, `firmware/release/rel_v1.s` → `firmware/patches/i2cfix.s`,
 > `rel_v2.s` → `i2cfix-volume-holdmute.s`, `firmware/diag/diag.s` → `diag.s`; image `wdt13s_diag` → `diag`, release images rel1/rel2 → `i2cfix` /
@@ -670,3 +670,45 @@ User: LED is on the back, can't be seen/felt -> wants audible feedback (jingle),
 - 2026-11-14: release timeout 20 -> 10 ms (rel_v1.s/rel_v2.s `cmp r2/r3, 10`), both images rebuilt (new sha256 in
   release/README.md). Worst-case block per tick ~180 ms. Address toggle 0x1B<->0x1A on retry left as stock (user: unknown
   why RØDE does it -> don't touch).
+
+## Session 4 (2026-11-19): protocol completion, firmware side (stock 1.1.9)
+RØDE Central side (bridge encoders, connect sequence, Basic mode): summarised in
+[`protocol/podmic-usb-hid-spec.md`](protocol/podmic-usb-hid-spec.md). Here: what the firmware accepts.
+
+### 4a. Report-8 handler 0x080084c4 (request `[id 8, param, op, value…]`, op 1 = get, else set; reply report 7)
+Reply byte 2 (after id/param): 'A' ok, **'E' (0x45) = value out of range**, 'N' = unknown param/bad value.
+| param | set | get | notes |
+|---|---|---|---|
+| 0x01 HPF | **v < 2** → 0x0800a824(v) + settings image; **v ≥ 2 → 'E'**, nothing applied | struct+0x35 | v=1 loads biquad 0x0800e96c (2nd-order HPF, Q30: b 0.99998/−1.99997/0.99998, a1 1.99017, a2 −0.99023; −3 dB ≈ 54 Hz, −0.5 dB @75 Hz, −7 dB @40 Hz); v=0 loads pass-through 0x0800e984 (b0=1). **1 = on, 0 = off (bypass)**; no third (150 Hz) set exists. Settings image reserves 2 bits for it. |
+| 0x03 monitoring | 0x08008e10 (struct+2, LED) | struct+2 | 1 = mic routed to headphones |
+| 0x04 monitor mix | **0..100**, >100 → 'E'; 0x0800a3b0: dB = v·66/100 − 60 → struct+0x10 (0x200001d4) | stored % | **mic level in the direct-monitoring mix** (−60..+6 dB, **91 = 0 dB**, factory 0x5B). Separate from the rear wheel (struct+4 = overall headphone level). Central has no UI for it. |
+| 0x05 (unused by Central) | v≠0 → flag 0x20000d6a = 1; v=0 → clear + LED refresh | flag | flag drives 0x08009348 (called from a periodic task at 0x08007ee6): toggles 0x20000d69 → LED on/off ⇒ **LED blink / "identify"** (inferred) |
+| 0x06 host ping | **only value 0** (else 'N') → 0x080099c8 (host-app flag 0x20000d71) | — | set-only. Bridge `ToPingMessage` sends 0 for Unify/Connect-type hosts; Central never. Flag makes the button mute instead of toggling monitoring; times out (0x0800995c). |
+| 0x07 biquads (unused by Central) | idx ≤ 2 at content 2; 5 × i32 coefficients (b0 b1 b2 a1 a2) at content 6–25 + shift byte at 26 (firmware reads a 24-B slot image from buffer offset 13; content 0 = buffer offset 7) → slot idx of the 3-biquad mic chain (0x20000164 + idx·0x18), renormalised (0x0800a4e0) | same layout | **raw filter access** (layout, sign convention and a 150 Hz example: spec §5.5): slot 0 = the HPF, so a custom 150 Hz HPF *could* be loaded here, but it is volatile (not in the settings image) and param 0x01 overwrites slot 0. |
+| 0x08 mute | 0x08008de8 | 0x0800a38c != 0 | not persisted |
+| 0x0B advanced | bool | | persisted |
+| 0x0C Basic slider | idx ≤ 2, value at content+2 | | persisted (image +0x4F..0x51) |
+| 0x0D processing | bool | | persisted |
+
+### 4b. Settings persistence
+- 0x080096cc rebuilds the 83-byte RAM image 0x20000100 after every set (report 4 and report 8 0x01/0x03/0x04/0x0B/0x0C/0x0D).
+  Layout: u16 +0: bits 0–1 HPF, bit 2 advanced, bit 3 monitoring, bits 4–10 monitor mix (bits 3/4–10 only updated
+  while no host app is flagged); +0x02 compressor (18 B: en, thr u32, ratio u8, attack u32, release u32, gain u32);
+  +0x14 gate (25 B: en + 6 × i32 Q31); +0x2D exciter (25 B: en, harm u32+coarse, 3 pad, tuneA u32+coarse, 3 pad,
+  tuneB u32, sub3 u8, 3 pad); +0x46 Big Bottom (9 B: en, drive u32+coarse, tune u8, sub3 u8, pad); +0x4F..0x51
+  Depth/Sparkle/Punch; +0x52 bit 0 processing. Mute, wheel position, param 5/7 state: not persisted.
+- Flash write 0x080097d8 only from: 'L' (0x080093f4), 'R' (0x08008792), factory reset (0x08009888). **0x080093f4 is
+  also vector-table entry IRQ1 = LVD (low-voltage detect)** ⇒ settings are written when the supply drops (unplug).
+  This explains why settings survive without any explicit save; `saveToMicrophone` in Central is a no-op for PodMic.
+- Boot 0x080098c0: loads the newest valid record from pages 46/47 (0x0800F800/0x0800FC00); none valid ⇒ factory reset
+  0x08009888 (erase both pages, copy defaults 0x0800e798, save, apply). The defaults only come back when pages 46/47
+  hold no valid record. RØDE Central's factory restore does NOT get there: it writes app pages 0–45 only (3a,
+  bootloader-protocol.md §7), then writes the previously read DSP values back with report 4 and sets HPF = 0.
+
+### 4c. Factory defaults (0x0800e798, decoded with the bridge tables)
+HPF off; advanced off; processing on (Basic); monitoring 1; monitor mix 91 (0 dB). Depth 75, Sparkle 80, Punch 70.
+Compressor on: −24.9 dB, ratio 1.99, attack 0.69 ms, release 20.9 ms, gain 1.98 dB. Gate off: −38 dB, attack ≈30 ms,
+hold 0.305 s, release 0.2 s, range −9 dB, hysteresis 0.2. Exciter on: harmonics 69.8 % (byte 178), tune 3499 Hz
+(byte 168), sub3 31. Big Bottom on: drive 64.7 % (byte 165), tune 90 Hz (byte 30), sub3 31.
+Punch 70 reproduces the Basic formulas exactly (comp −14−16p = −25.2, gain 3p = 2.1, gate −45+10p = −38, range −13p
+= −9.1). Note: the defaults say monitoring = 1, but the user saw red (= monitoring off) by default — to recheck on hardware.

@@ -79,6 +79,7 @@ jobs:
     # macOS support (scripts only, no binary): tests incl. the real IOKit/CoreFoundation bindings, and a run of the
     # device-listing command and the installer self-test. A runner has no mic: this can't replace a hardware test.
     runs-on: macos-latest
+    timeout-minutes: 20      # a hang (e.g. a blocked tty/IOKit call) fails fast instead of running for 6 h
     steps:
       - uses: actions/checkout@v4
         with:

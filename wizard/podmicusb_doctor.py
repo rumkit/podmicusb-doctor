@@ -152,7 +152,8 @@ def getkey_posix(fd=None):
     fd = sys.stdin.fileno() if fd is None else fd
     old = termios.tcgetattr(fd)
     try:
-        tty.setcbreak(fd)
+        # TCSANOW, not tty's default TCSAFLUSH: keep a key typed just before the prompt (like msvcrt on Windows)
+        tty.setcbreak(fd, termios.TCSANOW)
         ch = os.read(fd, 1)
         if ch == b"\x1b":
             if not select.select([fd], [], [], 0.05)[0]:
@@ -161,7 +162,7 @@ def getkey_posix(fd=None):
                 os.read(fd, 16)
             return ""
     finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        termios.tcsetattr(fd, termios.TCSANOW, old)       # no drain wait: on a macOS pty it can block forever
     return ch.decode("ascii", "replace").lower()
 
 

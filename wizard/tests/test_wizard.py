@@ -501,8 +501,13 @@ class MacOSTest(unittest.TestCase):
 @unittest.skipUnless(hasattr(os, "openpty"), "needs a POSIX pseudo-terminal")
 class PosixKeyTest(unittest.TestCase):
     def key(self, typed):
+        import termios
         master, slave = os.openpty()
         try:
+            # no echo: nobody reads `master`, and an echoed byte left in the pty's output queue can stall it on macOS
+            attrs = termios.tcgetattr(slave)
+            attrs[3] &= ~termios.ECHO
+            termios.tcsetattr(slave, termios.TCSANOW, attrs)
             os.write(master, typed)
             return wz.getkey_posix(slave)
         finally:

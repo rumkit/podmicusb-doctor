@@ -74,18 +74,16 @@ download over a local RØDE Central copy).
 > with what happened, also if it worked. Start with the steps that change nothing (`info`, `probe`, see
 > [`firmware/README.md`](firmware/README.md#macos)).
 
-The same installer as a Python script (Python 3.8+, standard library only). This is how you run it on a Mac
-(there is no macOS app). The bug was only seen on Windows, but you can install the fix from a Mac, e.g. for a mic
-you also use on a Windows PC.
-
 1. Install Python 3.8+:
    - Windows: from [python.org](https://www.python.org/downloads/windows/), then use `py`.
    - macOS: from [python.org](https://www.python.org/downloads/macos/) (macOS doesn't include it), or run
      `xcode-select --install`, which installs Apple's `python3`.
-2. Download this repository: green **Code** button on the repository page → **Download ZIP** (or `git clone`), and
-   unzip it. On a Mac, Safari unzips it into your Downloads folder.
+2. Get the code: the zip in the [latest release](https://github.com/rumkit/podmicusb-doctor/releases/latest) doesn't
+   include this script yet (it will from the next release), so clone this repository for now, or download it
+   as a ZIP (**Code → Download ZIP**). The script needs the repository's `firmware/` folder next to it; it
+   doesn't run on its own.
 3. Close RØDE Central (Windows: also check the system tray; macOS: RØDE Central menu → Quit) and plug in the mic.
-4. Open a terminal in the unzipped folder and run:
+4. Open a terminal in the repository folder and run:
 
 ```
 py wizard\podmicusb_doctor.py               # Windows

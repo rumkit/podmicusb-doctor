@@ -110,8 +110,7 @@ python3 podmic_flash.py flash podmicusb-1.1.9-i2cfix-volume-holdmute.bin
 
 - `diag`, `diag-test` and `podmic_monitor.py` are Windows only.
 - If something fails, the [recovery](#recovery) steps are the same. If RØDE Central on your Mac can't restore
-  1.1.9, unplug/replug and flash the stock image again with the installer ("Original RØDE firmware 1.1.9"), or
-  use RØDE Central on a Windows PC.
+  1.1.9, unplug/replug and flash the stock image again with the installer ("Original RØDE firmware 1.1.9").
 
 ## podmic_flash.py
 

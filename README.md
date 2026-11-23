@@ -27,9 +27,9 @@ The original issue was reported to RØDE support; the ticket was closed without 
 
 | Path | What |
 |---|---|
-| [`wizard/`](wizard/) | Source of the installer `podmicusb-doctor.exe` (uses the scripts in `firmware/tools/`) |
+| [`wizard/`](wizard/) | The installer: source of `podmicusb-doctor.exe` (Windows), also run directly as a Python script (macOS). Uses the scripts in `firmware/tools/` |
 | [`firmware/`](firmware/) | Patch variants, build script, flasher, monitor, recovery. [README](firmware/README.md) |
-| [`firmware/tools/`](firmware/tools/) | `extract_stock.py` · `build.py` · `podmic_flash.py` · `podmic_monitor.py` (Windows, Python 3.8+, no dependencies) |
+| [`firmware/tools/`](firmware/tools/) | `extract_stock.py` · `build.py` · `podmic_flash.py` · `podmic_monitor.py` (Python 3.8+, no dependencies; Windows. macOS: all but the monitor, not yet tested with a real mic) |
 | [`firmware/patches/`](firmware/patches/) | Patch sources (Thumb-2 assembly) and assembled bytes |
 | [`research/`](research/) | How the cause was found. [Summary](research/README.md) · [full lab notebook](research/NOTES.md) · [HID protocol](research/protocol/) · [firmware upload protocol](research/protocol/bootloader-protocol.md) |
 | [`docker/`](docker/) | The Linux reverse-engineering lab (Rizin + rz-ghidra, TShark, …) the analysis ran in. [README](docker/README.md) |
@@ -39,8 +39,9 @@ The original issue was reported to RØDE support; the ticket was closed without 
 
 No firmware files are distributed here. The tools get the stock 1.1.9 firmware from RØDE
 themselves (the installer downloads it from RØDE's own update server or copies it from RØDE Central, if you have it),
-patch it on your machine, and check that the result is byte-identical to the reference build. Everything runs on Windows. Read the [safety notes and recovery steps](firmware/README.md#recovery)
-first.
+patch it on your machine, and check that the result is byte-identical to the reference build. Options A and B are for
+Windows; on a Mac see [Option C](#option-c-macos-not-yet-tested-with-a-real-mic). Read the
+[safety notes and recovery steps](firmware/README.md#recovery) first.
 
 ### Option A: the installer (no Python needed)
 
@@ -70,10 +71,40 @@ download over a local RØDE Central copy).
 The same steps as separate scripts (Python 3.8+, standard library only), for people who want to see each step or
 keep the built image files. See [`firmware/README.md`](firmware/README.md).
 
+### Option C: macOS (not yet tested with a real mic)
+
+> [!IMPORTANT]
+> The macOS support is new and has **not been run with a real mic yet**; it is only covered by automated tests
+> (run on macOS in CI, without a mic).
+> If you try it, please [open an issue](https://github.com/rumkit/podmicusb-doctor/issues) with what happened,
+> also if it worked. Start with the steps that change nothing (`info`, `probe`, see
+> [`firmware/README.md`](firmware/README.md#macos)).
+
+The bug was only seen on Windows, but you can install the fix from a Mac, e.g. for a mic you also use on a
+Windows PC. There is no macOS app; you run the installer script:
+
+1. Install Python 3.8+ from [python.org](https://www.python.org/downloads/macos/) (macOS doesn't include it), or
+   run `xcode-select --install`, which installs Apple's `python3`.
+2. Download this repository: green **Code** button on the repository page → **Download ZIP** (or `git clone`).
+   Safari unzips it into your Downloads folder.
+3. Quit RØDE Central (RØDE Central menu → Quit), plug in the mic, then in Terminal:
+
+```
+cd ~/Downloads/podmicusb-doctor-*          # the unzipped folder
+python3 wizard/podmicusb_doctor.py
+```
+
+The menu and the safety checks are the same as in the Windows installer. The stock firmware normally comes from
+RØDE's update server: the installer looks in RØDE Central for macOS too, but it isn't known whether any mac
+version bundles 1.1.9.
+`python3 wizard/podmicusb_doctor.py --help` lists the options, e.g. `--self-test`, which needs no mic and checks
+the download and the builds.
+
 ## Status
 
 - Root cause identified and confirmed with test images on one unit (see [research](research/README.md)).
 - Only firmware 1.1.9 is supported.
+- Flashing tested on Windows. macOS support exists but has not been tested with a real mic yet.
 
 Reports from other PodMic USB owners are welcome, especially `diag` results, and whether the problem happens on
 other OSes or with `i2cfix`. Please open an issue.

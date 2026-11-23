@@ -4,7 +4,9 @@ podmic_flash.py - flash an application image to a RØDE PodMic USB through its
 HID bootloader, replicating exactly what RØDE Central sent during a factory
 restore (USB capture of a factory restore, 2026-11-11; see research/NOTES.md 3a).
 
-Windows only, standard library only (ctypes -> hid.dll / setupapi.dll / kernel32).
+Windows and macOS, standard library only (ctypes -> hid.dll / setupapi.dll / kernel32 on Windows,
+IOKit / CoreFoundation on macOS via podmic_hid_mac.py). macOS: check/info/probe/flash only, and NOT YET TESTED
+WITH A REAL MIC. diag/diag-test: Windows only.
 CLOSE RØDE CENTRAL before using this.
 
 Commands
@@ -33,6 +35,10 @@ import struct
 import sys
 import time
 import zlib
+
+# Run as a script, this module is "__main__"; podmic_hid_mac.py imports it as "podmic_flash". Register this copy
+# under that name too, so both see the same FlashError class.
+sys.modules.setdefault("podmic_flash", sys.modules[__name__])
 
 VID = 0x19F7
 PID_APP = 0x004A
@@ -340,9 +346,47 @@ def cmd_diag_test(args):
 
 
 # --------------------------------------------------------------------------
-# Windows HID transport (ctypes)
+# HID transports. An api has enumerate()/open() + the helpers below; a device has flush/send/recv/close.
+# send() takes a report starting with its report ID; recv() returns one starting with it, or None on timeout.
 # --------------------------------------------------------------------------
-class WinHid:
+class HidApiBase:
+    """find/wait_for/wait_gone on top of a backend's enumerate()."""
+
+    def find(self, pid):
+        return [d for d in self.enumerate() if d["pid"] == pid and d["usage_page"] == USAGE_PAGE_VENDOR]
+
+    def wait_for(self, pid, timeout=ENUM_TIMEOUT_S):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            found = self.find(pid)
+            if len(found) == 1:
+                return found[0]
+            if len(found) > 1:
+                raise FlashError("more than one device with PID 0x%04x - connect only one mic" % pid)
+            time.sleep(0.1)
+        raise FlashError("device PID 0x%04x did not appear within %.0f s" % (pid, timeout))
+
+    def wait_gone(self, pid, timeout=ENUM_TIMEOUT_S):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if not self.find(pid):
+                return
+            time.sleep(0.1)
+        raise FlashError("device PID 0x%04x did not disconnect within %.0f s" % (pid, timeout))
+
+
+def hid_api(platform=None):
+    """The HID backend for this OS."""
+    platform = platform or sys.platform
+    if platform == "win32":
+        return WinHid()
+    if platform == "darwin":
+        import podmic_hid_mac
+        return podmic_hid_mac.MacHid()
+    raise FlashError("device commands work on Windows and macOS only")
+
+
+class WinHid(HidApiBase):
     """Device enumeration + I/O through the Windows HID class driver."""
 
     def __init__(self):
@@ -471,28 +515,6 @@ class WinHid:
         finally:
             self.k32.CloseHandle(h)
 
-    def find(self, pid):
-        return [d for d in self.enumerate() if d["pid"] == pid and d["usage_page"] == USAGE_PAGE_VENDOR]
-
-    def wait_for(self, pid, timeout=ENUM_TIMEOUT_S):
-        end = time.monotonic() + timeout
-        while time.monotonic() < end:
-            found = self.find(pid)
-            if len(found) == 1:
-                return found[0]
-            if len(found) > 1:
-                raise FlashError("more than one device with PID 0x%04x - connect only one mic" % pid)
-            time.sleep(0.1)
-        raise FlashError("device PID 0x%04x did not appear within %.0f s" % (pid, timeout))
-
-    def wait_gone(self, pid, timeout=ENUM_TIMEOUT_S):
-        end = time.monotonic() + timeout
-        while time.monotonic() < end:
-            if not self.find(pid):
-                return
-            time.sleep(0.1)
-        raise FlashError("device PID 0x%04x did not disconnect within %.0f s" % (pid, timeout))
-
     def open(self, desc):
         return WinHidDevice(self, desc)
 
@@ -551,18 +573,34 @@ class WinHidDevice:
 # --------------------------------------------------------------------------
 # Commands
 # --------------------------------------------------------------------------
-def central_running():
+def central_running(platform=None):
     import subprocess
+    platform = platform or sys.platform
+    # Windows: image names; macOS: executable names (the app's is "RODE Central" or "RØDE Central")
+    argv = ["tasklist", "/FO", "CSV", "/NH"] if platform == "win32" else ["ps", "-axco", "command"]
     try:
-        out = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True).stdout
+        out = subprocess.run(argv, capture_output=True, text=True).stdout
     except OSError:
         return False
-    return "rode central" in out.lower()
+    out = out.lower()
+    return "rode central" in out or "røde central" in out
 
 
 def require_windows():
+    """diag / diag-test: Windows only."""
     if sys.platform != "win32":
-        raise FlashError("device commands work on Windows only")
+        raise FlashError("this command works on Windows only")
+    require_central_closed()
+
+
+def require_supported():
+    """check/info/probe/flash: Windows and macOS."""
+    if sys.platform not in ("win32", "darwin"):
+        raise FlashError("device commands work on Windows and macOS only")
+    require_central_closed()
+
+
+def require_central_closed():
     if central_running():
         raise FlashError("RØDE Central is running - close it first (it polls the mic "
                          "and may react to the bootloader appearing)")
@@ -590,9 +628,7 @@ def cmd_check(args):
 
 
 def cmd_info(args):
-    if sys.platform != "win32":
-        raise FlashError("device commands work on Windows only")
-    devs = WinHid().enumerate()
+    devs = hid_api().enumerate()
     if not devs:
         print("no RØDE HID devices found")
     for d in devs:
@@ -658,8 +694,8 @@ def compare_versions(api, img_ver):
 
 
 def cmd_probe(args):
-    require_windows()
-    api = WinHid()
+    require_supported()
+    api = hid_api()
     dev = api.open(enter_bootloader(api))
     try:
         info = boot_info(dev)
@@ -672,9 +708,9 @@ def cmd_probe(args):
 
 def cmd_flash(args):
     data, info = cmd_check(args)
-    require_windows()
+    require_supported()
     pages = pages_of(data)
-    api = WinHid()
+    api = hid_api()
     compare_versions(api, info["version_raw"])
     if args.skip_info and not api.find(PID_BOOT):
         raise FlashError("--skip-info is only allowed when the mic is already in bootloader mode")

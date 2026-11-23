@@ -10,8 +10,9 @@
 > comfortable with that risk and the recovery steps below, don't flash.
 
 Everything here is for the **RØDE PodMic USB** with firmware **1.1.9** only. The tools run on **Windows**
-(Python 3.8+ from python.org, standard library only, no `pip install`). The build and test scripts also run
-on Linux/macOS.
+(Python 3.8+ from python.org, standard library only, no `pip install`). `build.py` and the tests also run on
+Linux/macOS. On **macOS** `extract_stock.py` and `podmic_flash.py` (check/info/probe/flash) run too, but have
+**not been tested with a real mic yet**, see [macOS](#macos).
 
 ## Variants
 
@@ -83,6 +84,45 @@ Built-in safety rules:
 - Every erase/write must be acknowledged within 2 s. On the first failure it stops and leaves the mic in
   bootloader mode.
 
+## macOS
+
+> [!IMPORTANT]
+> Not yet tested with a real mic. The macOS transport (`tools/podmic_hid_mac.py`, IOKit through `ctypes`) is
+> covered by offline tests and a CI job on macOS (no mic there), but nobody has flashed a mic with it yet. The mic also presents a
+> different USB configuration to Apple computers (an extra iAP2 interface, [research notes 3q](../research/NOTES.md));
+> RØDE Central for macOS updates the mic over HID, so the HID interface the flasher uses should be there, but
+> that is not verified either.
+
+Same commands with `python3` instead of `py`, in Terminal in the `firmware/tools` folder of the downloaded
+repository (see [the main README](../README.md#option-c-macos-not-yet-tested-with-a-real-mic)). Quit RØDE Central
+first (RØDE Central menu → Quit).
+
+`extract_stock.py` searches `/Applications` for RØDE Central, but it isn't known whether any mac version bundles
+1.1.9 (2.0.21 bundled 1.1.0). If it finds none, download the stock image from RØDE's update server (the file the
+installer and RØDE Central download) and compare its sha256 with the stock line in [Variants](#variants):
+
+```
+curl -o podmicusb-1.1.9-stock.bin https://update.rode.com/podmicusb/firmware.bin
+shasum -a 256 podmicusb-1.1.9-stock.bin     # must be 11703ba4...8d4c; if not, stop
+```
+
+If you are the first to try it, please go in this order and stop at the first error:
+
+```
+python3 podmic_flash.py info     # sends nothing: should list "PodMic USB (app) ... bcdDevice 1.1.9 ... usage page 0xff00"
+python3 podmic_flash.py probe    # app -> bootloader -> query -> back to app; erases nothing
+python3 podmic_flash.py flash podmicusb-1.1.9-stock.bin     # same version as on the mic: lowest risk
+```
+
+Then [open an issue](https://github.com/rumkit/podmicusb-doctor/issues) with the output, including the `info`
+line. Only after that use the installer (`python3 ../../wizard/podmicusb_doctor.py`) or build and flash a fix
+variant (`python3 build.py i2cfix podmicusb-1.1.9-stock.bin`, see [Quick start](#quick-start-windows)).
+
+- `diag`, `diag-test` and `podmic_monitor.py` are Windows only.
+- If something fails, the [recovery](#recovery) steps are the same. If RØDE Central on your Mac can't restore
+  1.1.9, unplug/replug and flash the stock image again with the installer ("Original RØDE firmware 1.1.9"), or
+  use RØDE Central on a Windows PC.
+
 ## podmic_monitor.py
 
 Logs whether the mic stops responding or drops off USB, and for how long it was silent before the drop.
@@ -120,7 +160,8 @@ an issue with the DIAG lines if you see something different.
 ## Recovery
 
 - **Back to stock:** `py podmic_flash.py flash podmicusb-1.1.9-stock.bin` (the extracted stock image), or
-  `podmicusb-doctor.exe` → "Original RØDE firmware 1.1.9", or **RØDE Central → factory restore**.
+  the installer (`podmicusb-doctor.exe`, or the script on macOS) → "Original RØDE firmware 1.1.9", or
+  **RØDE Central → factory restore**.
 - **Flash failed / mic not responding:** unplug the mic, wait ~10 s, plug it back in, then run RØDE Central's
   **factory restore**. This has been tested after a rejected image. The bootloader lives in its own flash area
   (0x08000000–0x08003FFF), which the flasher never writes, so it stays usable.
@@ -141,7 +182,8 @@ python -m unittest discover -s wizard/tests -v              # the installer (sim
 ```
 
 The installer exe is built by `.github/workflows/build.yml` (PyInstaller) on every push; a `v*` tag also creates
-a draft release with the exe, the tools zip and `SHA256SUMS`.
+a draft release with the exe, the tools zip and `SHA256SUMS`. The same workflow runs the tests on macOS, plus
+`podmic_flash.py info` (no mic on the runner: proves the IOKit bindings load) and the installer's `--self-test`.
 
 With a stock image the tests also check the reference sha256s:
 

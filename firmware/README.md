@@ -9,9 +9,13 @@
 > not affiliated with or endorsed by RØDE. Nothing here has been reviewed by RØDE. If you are not
 > comfortable with that risk and the recovery steps below, don't flash.
 
-Everything here is for the **RØDE PodMic USB** with firmware **1.1.9** only. The tools run on **Windows**
-(Python 3.8+ from python.org, standard library only, no `pip install`). The build and test scripts also run
-on Linux/macOS.
+Everything here is for the **RØDE PodMic USB** with firmware **1.1.9** only. The tools need Python 3.8+ and
+nothing else (standard library only, no `pip install`).
+
+- **Windows:** all tools.
+- **macOS:** everything except the monitor and the diag commands. **Not yet tested with a real mic**, see
+  [macOS](#macos).
+- **Linux:** `build.py` and the tests only (no flashing).
 
 ## Variants
 
@@ -28,21 +32,32 @@ are welcome). The test runs showing that the priority fix works are in
 
 All variants keep version 1.1.9, so RØDE Central sees stock 1.1.9 and its factory restore still works.
 
-## Quick start (Windows)
+## Quick start
 
-Don't want to install Python? Use the installer `podmicusb-doctor.exe` instead, see
-[the main README](../README.md#option-a-the-installer-no-python-needed). It does the same steps.
+Prefer one guided program over separate commands? The installer does the same steps: `podmicusb-doctor.exe` on Windows
+([Option A](../README.md#option-a-the-installer-no-python-needed)), the same program run as a Python script on
+macOS and Windows ([Option B](../README.md#option-b-the-python-scripts-windows-and-macos)).
 
 This repository contains **no RØDE firmware**. You extract the stock image from your own RØDE Central install
 and `build.py` patches it on your machine. The build output is checked against the sha256 in the table above, so
 you know you have exactly the reference image.
 
 1. Install **RØDE Central** (you probably have it already). **Close it** before running the tools; it polls
-   the mic and gets in the way.
+   the mic and gets in the way (Windows: also check the system tray; macOS: RØDE Central menu → Quit).
 2. Get the tools: download the zip from the
    [latest release](https://github.com/rumkit/podmicusb-doctor/releases/latest) and unzip it, or clone this
-   repository. Open a terminal in its `firmware\tools` folder.
-3. Extract the stock image, build, check, flash:
+   repository. Open a terminal in its `firmware/tools` folder.
+3. Extract the stock image, build, check and flash, with the commands for your system below.
+
+The examples install the fix **with** the extras: hold the wheel for about 0.7 s to mute or unmute the mic. For
+the fix alone, use `i2cfix` instead of `i2cfix-volume-holdmute` (see [Variants](#variants)).
+
+`flash` asks you to type `FLASH` before it erases anything. The flash itself takes about 4 s. **Don't unplug the
+mic while it runs.** At the end the mic restarts and the flasher prints the version it reports (1.1.9).
+
+The headphone level is not a stored setting: stock firmware also resets it at every power-up (to −31.5 dB).
+
+### Windows
 
 ```
 py extract_stock.py                        # finds rode_bridge.dll in Program Files -> podmicusb-1.1.9-stock.bin
@@ -51,14 +66,51 @@ py podmic_flash.py check podmicusb-1.1.9-i2cfix-volume-holdmute.bin
 py podmic_flash.py flash podmicusb-1.1.9-i2cfix-volume-holdmute.bin
 ```
 
-This installs the fix **with** the extras: hold the wheel for about 0.7 s to mute or unmute the mic. For the fix
-alone, use `i2cfix` in the last three lines instead (see [Variants](#variants)).
-
 If RØDE Central is installed somewhere else: `py extract_stock.py "D:\path\to\RODE Central"`.
-`flash` asks you to type `FLASH` before it erases anything. The flash itself takes about 4 s. **Don't unplug the
-mic while it runs.** At the end the mic restarts and the flasher prints the version it reports (1.1.9).
 
-The headphone level is not a stored setting: stock firmware also resets it at every power-up (to −31.5 dB).
+### macOS
+
+> [!IMPORTANT]
+> Not yet tested with a real mic. The macOS transport (`tools/podmic_hid_mac.py`, IOKit through `ctypes`) is
+> covered by offline tests and a CI job on macOS (no mic there), but nobody has flashed a mic with it yet. The mic
+> also presents a different USB configuration to Apple computers (an extra iAP2 interface,
+> [research notes 3q](../research/NOTES.md)); RØDE Central for macOS updates the mic over HID, so the HID
+> interface the flasher uses should be there, but that is not verified either.
+
+Use Terminal and `python3`. First get the stock image. `extract_stock.py` searches `/Applications` for RØDE
+Central, but it isn't known whether any mac version bundles 1.1.9 (2.0.21 bundled 1.1.0). If it finds none,
+download the image from RØDE's update server (the file the installer and RØDE Central download) and check its
+sha256 against the stock line in [Variants](#variants):
+
+```
+python3 extract_stock.py                   # -> podmicusb-1.1.9-stock.bin, if RØDE Central bundles it
+# if not:
+curl -o podmicusb-1.1.9-stock.bin https://update.rode.com/podmicusb/firmware.bin
+shasum -a 256 podmicusb-1.1.9-stock.bin    # must be 11703ba4...8d4c; if not, stop
+```
+
+Because nobody has flashed from a Mac yet, if you are the first, check that the flasher talks to the mic by
+re-flashing the unchanged stock image (same version as on the mic: lowest risk). Go in this order and stop at the
+first error:
+
+```
+python3 podmic_flash.py info               # sends nothing: should list "PodMic USB (app) ... bcdDevice 1.1.9 ... usage page 0xff00"
+python3 podmic_flash.py probe              # app -> bootloader -> query -> back to app; erases nothing
+python3 podmic_flash.py flash podmicusb-1.1.9-stock.bin
+```
+
+Then [open an issue](https://github.com/rumkit/podmicusb-doctor/issues) with the output, including the `info`
+line. After that, build and flash the fix:
+
+```
+python3 build.py i2cfix-volume-holdmute    # -> podmicusb-1.1.9-i2cfix-volume-holdmute.bin, prints "= reference build"
+python3 podmic_flash.py check podmicusb-1.1.9-i2cfix-volume-holdmute.bin
+python3 podmic_flash.py flash podmicusb-1.1.9-i2cfix-volume-holdmute.bin
+```
+
+- `diag`, `diag-test` and `podmic_monitor.py` are Windows only.
+- If something fails, the [recovery](#recovery) steps are the same. If RØDE Central on your Mac can't restore
+  1.1.9, unplug/replug and flash the stock image again with the installer ("Original RØDE firmware 1.1.9").
 
 ## podmic_flash.py
 
@@ -120,7 +172,8 @@ an issue with the DIAG lines if you see something different.
 ## Recovery
 
 - **Back to stock:** `py podmic_flash.py flash podmicusb-1.1.9-stock.bin` (the extracted stock image), or
-  `podmicusb-doctor.exe` → "Original RØDE firmware 1.1.9", or **RØDE Central → factory restore**.
+  the installer (`podmicusb-doctor.exe`, or the script on macOS) → "Original RØDE firmware 1.1.9", or
+  **RØDE Central → factory restore**.
 - **Flash failed / mic not responding:** unplug the mic, wait ~10 s, plug it back in, then run RØDE Central's
   **factory restore**. This has been tested after a rejected image. The bootloader lives in its own flash area
   (0x08000000–0x08003FFF), which the flasher never writes, so it stays usable.
@@ -141,7 +194,8 @@ python -m unittest discover -s wizard/tests -v              # the installer (sim
 ```
 
 The installer exe is built by `.github/workflows/build.yml` (PyInstaller) on every push; a `v*` tag also creates
-a draft release with the exe, the tools zip and `SHA256SUMS`.
+a draft release with the exe, the tools zip and `SHA256SUMS`. The same workflow runs the tests on macOS, plus
+`podmic_flash.py info` (no mic on the runner: proves the IOKit bindings load) and the installer's `--self-test`.
 
 With a stock image the tests also check the reference sha256s:
 

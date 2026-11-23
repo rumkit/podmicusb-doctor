@@ -442,6 +442,88 @@ class ArgsTest(unittest.TestCase):
             wz.parse_args(["--details"])
 
 
+class MacOSTest(unittest.TestCase):
+    """macOS-specific paths that can be checked on any OS."""
+
+    def test_unsupported_os_refused(self):
+        out = io.StringIO()
+        with mock.patch.object(wz.sys, "platform", "linux"), contextlib.redirect_stdout(out):
+            self.assertEqual(wz.main([]), 1)
+        self.assertIn("Windows and macOS only", out.getvalue())
+
+    def test_mac_uses_mac_backend(self):
+        with mock.patch.object(wz.sys, "platform", "darwin"), \
+                mock.patch.object(pf, "hid_api", return_value="api") as api, \
+                mock.patch.object(wz, "run", return_value=0) as run:
+            self.assertEqual(wz.main([]), 0)
+        api.assert_called_once_with()
+        self.assertEqual(run.call_args[0][0], "api")
+
+    def test_mac_ca_bundle_loaded(self):
+        import ssl
+        with mock.patch.object(wz, "MACOS", True), mock.patch.object(wz.os.path, "isfile", return_value=True), \
+                mock.patch.object(ssl.SSLContext, "load_verify_locations") as load:
+            wz.tls_context()
+        self.assertIn(mock.call(wz.MACOS_CA_FILE), load.call_args_list)
+
+    def test_mac_central_prompt(self):
+        running = iter([True, False])
+        prompts = []
+        with mock.patch.object(wz, "MACOS", True), mock.patch.object(pf, "central_running", lambda: next(running)), \
+                mock.patch.object(wz, "press_any_key", prompts.append):
+            wz.wait_central_closed()
+        self.assertIn("Quit", prompts[0])
+
+    def test_mac_banner_says_untested(self):
+        out = io.StringIO()
+        with mock.patch.object(wz, "MACOS", True), mock.patch.object(wz, "wait_central_closed"), \
+                mock.patch.object(wz, "connect_mic", side_effect=wz.Abort), contextlib.redirect_stdout(out), \
+                self.assertRaises(wz.Abort):
+            wz.run(None)
+        self.assertIn("NOT YET TESTED", out.getvalue())
+
+    def test_find_mac_app_binary(self):
+        import tempfile
+        es = wz.extract_stock
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(es.find_mac_app_binary([d]))
+            exe = os.path.join(d, "RØDE Central.app", "Contents", "MacOS", "RØDE Central")
+            os.makedirs(os.path.dirname(exe))
+            open(exe, "wb").close()
+            self.assertEqual(es.find_mac_app_binary([d]), exe)
+            lib = os.path.join(d, "RØDE Central.app", "Contents", "Frameworks", "rode_bridge.framework",
+                               "Versions", "A", "rode_bridge")
+            os.makedirs(os.path.dirname(lib))
+            open(lib, "wb").close()
+            self.assertEqual(es.find_mac_app_binary([d]), lib)       # the bridge library first, if there is one
+
+
+@unittest.skipUnless(hasattr(os, "openpty"), "needs a POSIX pseudo-terminal")
+class PosixKeyTest(unittest.TestCase):
+    def key(self, typed):
+        import termios
+        master, slave = os.openpty()
+        try:
+            # no echo: nobody reads `master`, and an echoed byte left in the pty's output queue can stall it on macOS
+            attrs = termios.tcgetattr(slave)
+            attrs[3] &= ~termios.ECHO
+            termios.tcsetattr(slave, termios.TCSANOW, attrs)
+            os.write(master, typed)
+            return wz.getkey_posix(slave)
+        finally:
+            os.close(master)
+            os.close(slave)
+
+    def test_letter(self):
+        self.assertEqual(self.key(b"Q"), "q")
+
+    def test_esc(self):
+        self.assertEqual(self.key(b"\x1b"), "esc")
+
+    def test_arrow_ignored(self):
+        self.assertEqual(self.key(b"\x1b[A"), "")
+
+
 @unittest.skipUnless(os.environ.get("PODMIC_STOCK"), "set PODMIC_STOCK to a stock 1.1.9 image")
 class RealStockTest(unittest.TestCase):
     def test_every_menu_entry_builds_the_reference_image(self):

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-podmicusb-doctor - guided installer for the RØDE PodMic USB firmware fix (Windows).
+podmicusb-doctor - guided installer for the RØDE PodMic USB firmware fix (Windows; macOS: not yet tested
+with a real mic).
 
 One program instead of extract_stock.py + build.py + podmic_flash.py:
   1. finds the mic and checks it runs firmware 1.1.9,
@@ -10,7 +11,8 @@ One program instead of extract_stock.py + build.py + podmic_flash.py:
   4. flashes it after you confirm.
 Nothing is saved to disk. No RØDE firmware is shipped with this program.
 
-usage:  py podmicusb_doctor.py [options]     (or double-click podmicusb-doctor.exe)
+usage:  py podmicusb_doctor.py [options]       (Windows; or double-click podmicusb-doctor.exe)
+        python3 podmicusb_doctor.py [options]  (macOS)
   --self-test  no mic needed, changes nothing: downloads and verifies the stock image (and checks the local
                RØDE Central copy if installed), builds every variant and checks it against its reference sha256
   --verbose    also show where the program loaded its own code from, which certificate list it uses, and the
@@ -53,6 +55,8 @@ def program_name(version):
 
 PROGRAM = program_name(VERSION)
 REPO_URL = "https://github.com/rumkit/podmicusb-doctor"
+MACOS = sys.platform == "darwin"
+MACOS_CA_FILE = "/etc/ssl/cert.pem"     # macOS' own CA bundle; python.org's Python doesn't use it by default
 FIRMWARE_URL = "https://update.rode.com/podmicusb/firmware.bin"
 MANIFEST_URL = "https://update.rode.com/rode-devices-manifest.json"
 USER_AGENT = "podmicusb-doctor/" + VERSION
@@ -91,10 +95,16 @@ class Abort(Exception):
 def drop_pending_keys():
     """Discard keys typed ahead (e.g. an Enter pressed after a single-key menu choice), so they can't answer
     the next line prompt."""
-    if console_keys():
+    if not console_keys():
+        return
+    try:
         import msvcrt
-        while msvcrt.kbhit():
-            msvcrt.getwch()
+    except ImportError:
+        import termios
+        termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
+        return
+    while msvcrt.kbhit():
+        msvcrt.getwch()
 
 
 def ask(prompt):
@@ -106,19 +116,24 @@ def ask(prompt):
 
 
 def console_keys():
-    """True when single keypresses can be read (a real Windows console, not piped/redirected input)."""
+    """True when single keypresses can be read (a real console/terminal, not piped/redirected input)."""
     if not sys.stdin or not sys.stdin.isatty():
         return False
-    try:
-        import msvcrt  # noqa: F401
-        return True
-    except ImportError:
-        return False
+    for mod in ("msvcrt", "termios"):        # Windows console / macOS (POSIX) terminal
+        try:
+            __import__(mod)
+            return True
+        except ImportError:
+            pass
+    return False
 
 
 def getkey():
     """One keypress, no Enter. Ctrl+C raises KeyboardInterrupt, Esc returns 'esc', arrow/function keys ''."""
-    import msvcrt
+    try:
+        import msvcrt
+    except ImportError:
+        return getkey_posix()
     ch = msvcrt.getwch()
     if ch == "\x03":
         raise KeyboardInterrupt
@@ -126,6 +141,29 @@ def getkey():
         msvcrt.getwch()
         return ""
     return "esc" if ch == "\x1b" else ch.lower()
+
+
+def getkey_posix(fd=None):
+    """getkey() in a POSIX terminal: cbreak mode (no echo, no Enter; Ctrl+C still raises KeyboardInterrupt).
+    Esc alone -> 'esc'; an escape sequence (arrow/function key) -> ''."""
+    import select
+    import termios
+    import tty
+    fd = sys.stdin.fileno() if fd is None else fd
+    old = termios.tcgetattr(fd)
+    try:
+        # TCSANOW, not tty's default TCSAFLUSH: keep a key typed just before the prompt (like msvcrt on Windows)
+        tty.setcbreak(fd, termios.TCSANOW)
+        ch = os.read(fd, 1)
+        if ch == b"\x1b":
+            if not select.select([fd], [], [], 0.05)[0]:
+                return "esc"
+            while select.select([fd], [], [], 0.01)[0]:   # rest of the sequence
+                os.read(fd, 16)
+            return ""
+    finally:
+        termios.tcsetattr(fd, termios.TCSANOW, old)       # no drain wait: on a macOS pty it can block forever
+    return ch.decode("ascii", "replace").lower()
 
 
 def pick(prompt, valid):
@@ -158,12 +196,16 @@ def press_any_key(prompt):
 # Stock image
 # --------------------------------------------------------------------------
 def tls_context():
-    """Windows' trusted roots plus certifi's CA list if available (bundled in the exe).
+    """The system's trusted roots plus certifi's CA list if available (bundled in the exe).
 
-    Python only sees the roots already in the Windows store. A fresh Windows has few and downloads the rest only
-    when Windows' own HTTPS stack asks; Python's doesn't. RØDE's server chains to a root that may be missing
-    (seen in Windows Sandbox). certifi fills the gap; certificate checking stays on either way."""
+    Windows: Python only sees the roots already in the Windows store. A fresh Windows has few and downloads the
+    rest only when Windows' own HTTPS stack asks; Python's doesn't. RØDE's server chains to a root that may be
+    missing (seen in Windows Sandbox). certifi fills the gap.
+    macOS: python.org's Python has no CA list until "Install Certificates.command" is run, so macOS' own bundle
+    is loaded too. Certificate checking stays on either way."""
     ctx = ssl.create_default_context()
+    if MACOS and os.path.isfile(MACOS_CA_FILE):
+        ctx.load_verify_locations(MACOS_CA_FILE)
     try:
         import certifi
         ctx.load_verify_locations(certifi.where())
@@ -173,11 +215,12 @@ def tls_context():
 
 
 def tls_source():
+    system = ("Python default + " + MACOS_CA_FILE) if MACOS else "Windows store"
     try:
         import certifi
-        return "Windows store + certifi %s" % certifi.__version__
+        return "%s + certifi %s" % (system, certifi.__version__)
     except ImportError:
-        return "Windows store only (certifi not installed)"
+        return "%s only (certifi not installed)" % system
 
 
 def http_get(url, limit=MAX_DOWNLOAD):
@@ -338,8 +381,9 @@ def choose_variant(options):
 
 
 def wait_central_closed():
+    where = "quit it (RØDE Central menu -> Quit)" if MACOS else "close it (also check the system tray)"
     while pf.central_running():
-        press_any_key("RØDE Central is running. Close it (also check the system tray), then press any key...")
+        press_any_key("RØDE Central is running. Please %s, then press any key..." % where)
 
 
 def connect_mic(api):
@@ -362,6 +406,9 @@ def print_details():
 def run(api, verbose=False, prefer_download=False):
     print("%s - firmware fix for the RØDE PodMic USB\n%s\n" % (PROGRAM, REPO_URL))
     print("Not affiliated with or endorsed by RØDE. Flashing modified firmware is at your own risk.\n")
+    if MACOS:
+        print("macOS support is new and NOT YET TESTED with a real mic. If you try it, please report what\n"
+              "happened (also if it worked) at %s/issues\n" % REPO_URL)
     if verbose:
         print_details()
     wait_central_closed()
@@ -477,10 +524,10 @@ def main(argv=None):
     try:
         if a.self_test:
             return self_test(verbose=a.verbose)
-        if sys.platform != "win32":
-            print("This program runs on Windows only.")
+        if sys.platform not in ("win32", "darwin"):
+            print("This program runs on Windows and macOS only.")
             return 1
-        return run(pf.WinHid(), verbose=a.verbose, prefer_download=a.download)
+        return run(pf.hid_api(), verbose=a.verbose, prefer_download=a.download)
     except Abort:
         print("\nCancelled. Nothing was changed.")
         return 1

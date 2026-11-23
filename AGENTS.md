@@ -6,14 +6,15 @@ Instructions for AI coding agents (and a quick orientation for humans). Keep thi
 ## What this repo is
 Community fix for the RØDE PodMic USB (firmware 1.1.9) disconnect bug: I2C interrupt priority too low, so a
 codec write never completes, the main loop hangs and the watchdog resets the mic. The repo holds patch sources,
-a build script that applies them to the user's own stock image, a Windows HID flasher and a monitor.
+a build script that applies them to the user's own stock image, a HID flasher (Windows; macOS not yet tested on
+hardware), an installer and a monitor.
 
 ## Map
 | Path | What |
 |---|---|
-| `firmware/tools/` | user-facing scripts: `extract_stock.py`, `build.py`, `podmic_flash.py`, `podmic_monitor.py` |
+| `firmware/tools/` | user-facing scripts: `extract_stock.py`, `build.py`, `podmic_flash.py`, `podmic_monitor.py`; `podmic_hid_mac.py` = macOS HID transport for the flasher (IOKit via ctypes; **not yet tested with a real mic**, keep that label until it is) |
 | `firmware/patches/*.s` → `*.json` | add-on sources → assembled bytes + labels (`firmware/dev/assemble.py`, needs `rz-asm`) |
-| `wizard/` | installer `podmicusb-doctor.exe`: reuses `firmware/tools/` (never duplicate their safety logic); tests in `wizard/tests/`; exe built by `.github/workflows/build.yml` (PyInstaller + certifi, build-time only) |
+| `wizard/` | installer `podmicusb-doctor.exe` (Windows; on macOS run as a script with `python3`): reuses `firmware/tools/` (never duplicate their safety logic); tests in `wizard/tests/`; exe built by `.github/workflows/build.yml` (PyInstaller + certifi, build-time only) |
 | `assets/` | logo and exe icon (`icon.svg` → `podmicusb-doctor.ico`, a static asset) |
 | `firmware/tests/` | offline unit tests (synthetic images) |
 | `firmware/dev/` | developer tools (assembler, `i2cfix-volume-holdmute` emulator; both need Rizin) |
@@ -38,7 +39,9 @@ a build script that applies them to the user's own stock image, a Windows HID fl
 - **Never commit** RØDE firmware (stock or patched `.bin`), RØDE software, USB captures (`.pcap*`), monitor logs, or
   anything containing a device serial number. `.gitignore` blocks the common extensions; still check `git status`.
 - Users build images locally. Don't add download links to firmware binaries.
-- Tools in `firmware/tools/` stay **Python standard library only** (Windows users run them with plain `py`).
+- Tools in `firmware/tools/` stay **Python standard library only** (Windows users run them with plain `py`, macOS
+  users with `python3`). New OS backends implement the `WinHid` interface (`HidApiBase`, `hid_api()` in
+  `podmic_flash.py`); protocol and safety logic stays in `podmic_flash.py`.
 
 ## Workflow
 - Tests and the patch-change steps: `firmware/README.md` → "For developers". Run the tests after every change.

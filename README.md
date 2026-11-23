@@ -39,9 +39,9 @@ The original issue was reported to RØDE support; the ticket was closed without 
 
 No firmware files are distributed here. The tools get the stock 1.1.9 firmware from RØDE
 themselves (the installer downloads it from RØDE's own update server or copies it from RØDE Central, if you have it),
-patch it on your machine, and check that the result is byte-identical to the reference build. Options A and B are for
-Windows; on a Mac see [Option C](#option-c-macos-not-yet-tested-with-a-real-mic). Read the
-[safety notes and recovery steps](firmware/README.md#recovery) first.
+patch it on your machine, and check that the result is byte-identical to the reference build. Option A is for
+Windows, Option B for Windows and macOS. Read the [safety notes and recovery steps](firmware/README.md#recovery)
+first.
 
 ### Option A: the installer (no Python needed)
 
@@ -66,39 +66,39 @@ build: `gh attestation verify podmicusb-doctor.exe --repo rumkit/podmicusb-docto
 `podmicusb-doctor.exe --help` lists the options (a self-test that needs no mic, more detailed output, preferring the
 download over a local RØDE Central copy).
 
-### Option B: the Python scripts
-
-The same steps as separate scripts (Python 3.8+, standard library only), for people who want to see each step or
-keep the built image files. See [`firmware/README.md`](firmware/README.md).
-
-### Option C: macOS (not yet tested with a real mic)
+### Option B: the Python scripts (Windows and macOS)
 
 > [!IMPORTANT]
-> The macOS support is new and has **not been run with a real mic yet**; it is only covered by automated tests
-> (run on macOS in CI, without a mic).
-> If you try it, please [open an issue](https://github.com/rumkit/podmicusb-doctor/issues) with what happened,
-> also if it worked. Start with the steps that change nothing (`info`, `probe`, see
+> On macOS this has **not been run with a real mic yet**; it is only covered by automated tests (run on macOS in
+> CI, without a mic). If you try it, please [open an issue](https://github.com/rumkit/podmicusb-doctor/issues)
+> with what happened, also if it worked. Start with the steps that change nothing (`info`, `probe`, see
 > [`firmware/README.md`](firmware/README.md#macos)).
 
-The bug was only seen on Windows, but you can install the fix from a Mac, e.g. for a mic you also use on a
-Windows PC. There is no macOS app; you run the installer script:
+The same installer as a Python script (Python 3.8+, standard library only). This is how you run it on a Mac
+(there is no macOS app). The bug was only seen on Windows, but you can install the fix from a Mac, e.g. for a mic
+you also use on a Windows PC.
 
-1. Install Python 3.8+ from [python.org](https://www.python.org/downloads/macos/) (macOS doesn't include it), or
-   run `xcode-select --install`, which installs Apple's `python3`.
-2. Download this repository: green **Code** button on the repository page → **Download ZIP** (or `git clone`).
-   Safari unzips it into your Downloads folder.
-3. Quit RØDE Central (RØDE Central menu → Quit), plug in the mic, then in Terminal:
+1. Install Python 3.8+:
+   - Windows: from [python.org](https://www.python.org/downloads/windows/), then use `py`.
+   - macOS: from [python.org](https://www.python.org/downloads/macos/) (macOS doesn't include it), or run
+     `xcode-select --install`, which installs Apple's `python3`.
+2. Download this repository: green **Code** button on the repository page → **Download ZIP** (or `git clone`), and
+   unzip it. On a Mac, Safari unzips it into your Downloads folder.
+3. Close RØDE Central (Windows: also check the system tray; macOS: RØDE Central menu → Quit) and plug in the mic.
+4. Open a terminal in the unzipped folder and run:
 
 ```
-cd ~/Downloads/podmicusb-doctor-*          # the unzipped folder
-python3 wizard/podmicusb_doctor.py
+py wizard\podmicusb_doctor.py               # Windows
+python3 wizard/podmicusb_doctor.py          # macOS
 ```
 
-The menu and the safety checks are the same as in the Windows installer. The stock firmware normally comes from
-RØDE's update server: the installer looks in RØDE Central for macOS too, but it isn't known whether any mac
-version bundles 1.1.9.
-`python3 wizard/podmicusb_doctor.py --help` lists the options, e.g. `--self-test`, which needs no mic and checks
-the download and the builds.
+The menu and the safety checks are the same as in the exe (see [Option A](#option-a-the-installer-no-python-needed)).
+The stock firmware normally comes from RØDE's update server: the installer also looks in RØDE Central, but on
+macOS it isn't known whether any version bundles 1.1.9. `--help` lists the options, e.g. `--self-test`, which needs
+no mic and checks the download and the builds.
+
+To run each step yourself instead (extract, build, check, flash) and keep the built image files, see the
+[quick start in `firmware/README.md`](firmware/README.md#quick-start).
 
 ## Status
 

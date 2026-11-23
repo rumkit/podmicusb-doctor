@@ -1,8 +1,8 @@
 # Lab environment (Docker)
 
 The Linux container the firmware was analysed in. You **don't need it to use the fix**: the tools in
-[`firmware/tools/`](../firmware/tools/) run on Windows (and macOS, not yet tested with a real mic) with plain
-Python. It is here so the analysis in
+[`firmware/tools/`](../firmware/tools/) run on your own computer with plain Python (see
+[`firmware/README.md`](../firmware/README.md)). It is here so the analysis in
 [`research/`](../research/) can be reproduced and the patches in [`firmware/patches/`](../firmware/patches/) rebuilt.
 It's a small example of the setup that was used, not a maintained product: take what you need, or use your own image.
 
@@ -45,5 +45,4 @@ docker run -it --name podmic-re -v podmic-re-home:/root -v "$PWD":/workspace pod
 - Secrets (e.g. `CLAUDE_CODE_OAUTH_TOKEN`) are never baked into the image; if you need them, pass them at run
   time with `--env-file .env` and keep `.env` out of git.
 
-Flashing, the monitor and USBPcap captures can't run in the container: they need the mic on the host's USB and run
-on Windows (flashing also on macOS).
+Flashing, the monitor and USB captures can't run in the container: they need the mic on the host's USB.
